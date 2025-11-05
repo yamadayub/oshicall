@@ -43,8 +43,7 @@ export default function Home() {
       try {
         setIsLoading(true);
 
-        // active_auctions_view から取得（activeとended両方）
-        // 完了済みも含めて表示するため、直接auctionsテーブルとjoinして取得
+        // active_auctions_viewから取得（activeのみ）
         const { data: auctionData, error: auctionError } = await supabase
           .from('auctions')
           .select(`
@@ -76,7 +75,7 @@ export default function Home() {
               )
             )
           `)
-          .in('status', ['active', 'ended'])
+          .eq('status', 'active')
           .order('end_time', { ascending: false });
 
         if (auctionError) {

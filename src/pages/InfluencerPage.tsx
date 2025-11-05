@@ -16,6 +16,7 @@ export default function InfluencerPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isFollowingInfluencer, setIsFollowingInfluencer] = useState(false);
   const [isFollowLoading, setIsFollowLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'active' | 'ended'>('active');
 
   useEffect(() => {
     const fetchInfluencerData = async () => {
@@ -49,12 +50,41 @@ export default function InfluencerPage() {
           setIsFollowingInfluencer(following);
         }
 
-        // Fetch this influencer's active auctions only
+        // Fetch this influencer's auctions (both active and ended)
         const { data: auctionData, error: auctionError } = await supabase
-          .from('active_auctions_view')
-          .select('*')
-          .eq('influencer_id', influencerId)
-          .order('end_time', { ascending: true });
+          .from('auctions')
+          .select(`
+            id,
+            call_slot_id,
+            status,
+            start_time,
+            end_time,
+            current_highest_bid,
+            current_winner_id,
+            call_slots!inner(
+              id,
+              user_id,
+              title,
+              description,
+              scheduled_start_time,
+              duration_minutes,
+              starting_price,
+              minimum_bid_increment,
+              buy_now_price,
+              thumbnail_url,
+              users!call_slots_user_id_fkey(
+                id,
+                display_name,
+                bio,
+                profile_image_url,
+                total_calls_completed,
+                average_rating
+              )
+            )
+          `)
+          .eq('call_slots.user_id', influencerId)
+          .in('status', ['active', 'ended'])
+          .order('end_time', { ascending: false });
 
         if (auctionError) {
           console.error('オークションデータ取得エラー:', auctionError);
@@ -63,34 +93,41 @@ export default function InfluencerPage() {
         console.log(`📊 ${influencerData.display_name}のTalk枠:`, auctionData?.length || 0, '件');
 
         // Convert to TalkSession format
-        const talkSessions: TalkSession[] = (auctionData || []).map((item: any) => ({
-          id: item.call_slot_id,
-          influencer_id: item.influencer_id,
-          influencer: {
-            id: item.influencer_id,
-            name: item.influencer_name,
-            username: item.influencer_name,
-            avatar_url: item.influencer_image || '/images/talks/default.jpg',
-            description: item.influencer_bio || '',
-            follower_count: 0,
-            total_earned: 0,
-            total_talks: item.total_calls_completed || 0,
-            rating: item.average_rating || 0,
+        const talkSessions: TalkSession[] = (auctionData || []).map((item: any) => {
+          const callSlot = item.call_slots;
+          const user = callSlot?.users;
+
+          return {
+            id: item.call_slot_id,
+            influencer_id: callSlot?.user_id,
+            influencer: {
+              id: callSlot?.user_id,
+              name: user?.display_name || '不明',
+              username: user?.display_name || '不明',
+              avatar_url: user?.profile_image_url || '/images/talks/default.jpg',
+              description: user?.bio || '',
+              follower_count: 0,
+              total_earned: 0,
+              total_talks: user?.total_calls_completed || 0,
+              rating: user?.average_rating || 0,
+              created_at: new Date().toISOString(),
+            },
+            title: callSlot?.title || `${user?.display_name}とのTalk`,
+            description: callSlot?.description || '',
+            host_message: user?.bio || callSlot?.description || '',
+            start_time: callSlot?.scheduled_start_time,
+            end_time: new Date(new Date(callSlot?.scheduled_start_time).getTime() + (callSlot?.duration_minutes || 30) * 60000).toISOString(),
+            auction_end_time: item.end_time,
+            starting_price: callSlot?.starting_price,
+            current_highest_bid: item.current_highest_bid || callSlot?.starting_price,
+            buy_now_price: callSlot?.buy_now_price || null,
+            status: item.status === 'active' ? 'upcoming' : 'ended',
+            auction_status: item.status,
             created_at: new Date().toISOString(),
-          },
-          title: item.title || `${item.influencer_name}とのTalk`,
-          description: item.description || '',
-          host_message: item.influencer_bio || item.description || '',
-          start_time: item.scheduled_start_time,
-          end_time: new Date(new Date(item.scheduled_start_time).getTime() + item.duration_minutes * 60000).toISOString(),
-          auction_end_time: item.auction_end_time || item.end_time,
-          starting_price: item.starting_price,
-          current_highest_bid: item.current_highest_bid || item.starting_price,
-          status: item.status === 'active' ? 'upcoming' : 'ended',
-          created_at: new Date().toISOString(),
-          detail_image_url: item.thumbnail_url || item.influencer_image || '/images/talks/default.jpg',
-          is_female_only: false,
-        }));
+            detail_image_url: callSlot?.thumbnail_url || user?.profile_image_url || '/images/talks/default.jpg',
+            is_female_only: false,
+          };
+        });
 
         setTalks(talkSessions);
       } catch (err) {
@@ -221,26 +258,71 @@ export default function InfluencerPage() {
         </div>
       </div>
 
-      {/* Active Talks */}
+      {/* Talks Section with Tabs */}
       <div>
-        <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-4 flex items-center space-x-2">
-          <Calendar className="h-6 w-6 text-pink-500" />
-          <span>開催中のTalk枠 ({talks.length}件)</span>
-        </h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl md:text-2xl font-bold text-gray-900 flex items-center space-x-2">
+            <Calendar className="h-6 w-6 text-pink-500" />
+            <span>Talk枠一覧</span>
+          </h2>
+        </div>
 
-        {talks.length === 0 ? (
-          <div className="text-center py-12 bg-gradient-to-br from-pink-50 to-purple-50 rounded-xl border-2 border-pink-200">
-            <Calendar className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600 font-medium">現在開催中のTalk枠はありません</p>
-            <p className="text-sm text-gray-500 mt-2">新しいTalk枠が追加されるまでお待ちください</p>
-          </div>
-        ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {talks.map((talk) => (
-              <TalkCard key={talk.id} talk={talk} onSelect={handleTalkSelect} />
-            ))}
-          </div>
-        )}
+        {/* Tabs */}
+        <div className="flex space-x-2 mb-6 border-b border-gray-200">
+          <button
+            onClick={() => setActiveTab('active')}
+            className={`px-6 py-3 font-medium transition-all relative ${
+              activeTab === 'active'
+                ? 'text-pink-600 border-b-2 border-pink-600'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            オークション中
+            <span className="ml-2 px-2 py-0.5 rounded-full text-xs bg-pink-100 text-pink-600">
+              {talks.filter(t => (t as any).auction_status === 'active').length}
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab('ended')}
+            className={`px-6 py-3 font-medium transition-all relative ${
+              activeTab === 'ended'
+                ? 'text-gray-900 border-b-2 border-gray-900'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            オークション終了
+            <span className="ml-2 px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">
+              {talks.filter(t => (t as any).auction_status === 'ended').length}
+            </span>
+          </button>
+        </div>
+
+        {/* Talk Cards */}
+        {(() => {
+          const filteredTalks = talks.filter(t => (t as any).auction_status === activeTab);
+
+          if (filteredTalks.length === 0) {
+            return (
+              <div className="text-center py-12 bg-gradient-to-br from-pink-50 to-purple-50 rounded-xl border-2 border-pink-200">
+                <Calendar className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600 font-medium">
+                  {activeTab === 'active' ? '現在開催中のTalk枠はありません' : 'オークション終了済みのTalk枠はありません'}
+                </p>
+                <p className="text-sm text-gray-500 mt-2">
+                  {activeTab === 'active' ? '新しいTalk枠が追加されるまでお待ちください' : '過去のオークションがここに表示されます'}
+                </p>
+              </div>
+            );
+          }
+
+          return (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredTalks.map((talk) => (
+                <TalkCard key={talk.id} talk={talk} onSelect={handleTalkSelect} />
+              ))}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
