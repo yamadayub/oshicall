@@ -184,11 +184,6 @@ export default function Rankings() {
                       </div>
                       <div className="text-center md:text-left">
                         <h3 className="text-xl md:text-2xl font-black text-gray-800 mb-1">{influencer.display_name}</h3>
-                        <div className="flex flex-col md:flex-row items-center md:items-center space-y-2 md:space-y-0 md:space-x-6 mt-2 text-xs md:text-sm">
-                          <span className="bg-yellow-100 text-yellow-700 px-2 py-1 md:px-3 md:py-1 rounded-full font-bold">
-                            ⭐ {influencer.average_rating ? influencer.average_rating.toFixed(1) : '0.0'}/5.0
-                          </span>
-                        </div>
                       </div>
                     </div>
                     
@@ -296,7 +291,7 @@ export default function Rankings() {
         <h3 className="text-2xl md:text-3xl font-black bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent mb-4 md:mb-6 text-center">
           📊 推しトーク統計 📊
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8 text-center">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 text-center max-w-4xl mx-auto">
           <div className="space-y-2 md:space-y-3 bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">
             <div className="text-3xl md:text-5xl font-black bg-gradient-to-r from-pink-500 to-rose-600 bg-clip-text text-transparent">
               {stats ? `¥${formatPrice(stats.total_transaction_amount)}` : '¥0'}
@@ -310,13 +305,6 @@ export default function Rankings() {
             </div>
             <div className="text-base md:text-lg text-gray-700 font-bold">🎤 成立したTalk数</div>
             <div className="text-xs md:text-sm text-gray-500">累計実績</div>
-          </div>
-          <div className="space-y-2 md:space-y-3 bg-white rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">
-            <div className="text-3xl md:text-5xl font-black bg-gradient-to-r from-indigo-500 to-blue-600 bg-clip-text text-transparent">
-              {stats ? stats.average_rating.toFixed(1) : '0.0'}
-            </div>
-            <div className="text-base md:text-lg text-gray-700 font-bold">⭐ 平均満足度</div>
-            <div className="text-xs md:text-sm text-gray-500">ユーザー評価</div>
           </div>
         </div>
       </div>
