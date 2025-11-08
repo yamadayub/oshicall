@@ -26,6 +26,8 @@ export interface RankingStats {
 // インフルエンサーランキングを取得（総獲得金額順）
 export const getInfluencerRankings = async (limit: number = 10): Promise<InfluencerRanking[]> => {
   try {
+    console.log('🔍 インフルエンサーランキング取得開始');
+
     // 1. purchased_slotsからcall_slotsを結合してuser_idと価格を取得
     const { data: purchases, error: purchasesError } = await supabase
       .from('purchased_slots')
@@ -37,12 +39,17 @@ export const getInfluencerRankings = async (limit: number = 10): Promise<Influen
       `);
 
     if (purchasesError) {
-      console.error('Error fetching purchases:', purchasesError);
+      console.error('❌ Error fetching purchases:', purchasesError);
       throw purchasesError;
     }
 
+    console.log('📊 purchased_slots取得結果:', {
+      count: purchases?.length || 0,
+      data: purchases?.slice(0, 3) // 最初の3件を表示
+    });
+
     if (!purchases || purchases.length === 0) {
-      console.log('No purchases found');
+      console.log('⚠️ No purchases found');
       return [];
     }
 
@@ -115,22 +122,29 @@ export const getInfluencerRankings = async (limit: number = 10): Promise<Influen
 // ビッダーランキングを取得（総支払額順）
 export const getBidderRankings = async (limit: number = 10): Promise<BidderRanking[]> => {
   try {
+    console.log('🔍 ビッダーランキング取得開始');
+
     // 1. purchased_slotsから支払いデータを取得
     const { data: purchases, error: purchasesError } = await supabase
       .from('purchased_slots')
       .select('fan_user_id, winning_bid_amount');
 
     if (purchasesError) {
-      console.error('Error fetching purchases for bidders:', purchasesError);
+      console.error('❌ Error fetching purchases for bidders:', purchasesError);
       throw purchasesError;
     }
 
+    console.log('📊 ビッダーランキング用データ取得結果:', {
+      count: purchases?.length || 0,
+      data: purchases?.slice(0, 3)
+    });
+
     if (!purchases || purchases.length === 0) {
-      console.log('No purchases found for bidders');
+      console.log('⚠️ No purchases found for bidders');
       return [];
     }
 
-    console.log(`Found ${purchases.length} purchases for bidder rankings`);
+    console.log(`✅ Found ${purchases.length} purchases for bidder rankings`);
 
     // 2. ユーザーごとに集計
     const userStats = purchases.reduce((acc, purchase) => {
@@ -182,20 +196,27 @@ export const getBidderRankings = async (limit: number = 10): Promise<BidderRanki
 // プラットフォーム全体の統計を取得
 export const getRankingStats = async (): Promise<RankingStats> => {
   try {
+    console.log('🔍 統計データ取得開始');
+
     // 総取引額と完了したTalk数を取得
     const { data: purchases, error: purchasesError } = await supabase
       .from('purchased_slots')
       .select('winning_bid_amount');
 
     if (purchasesError) {
-      console.error('Error fetching purchases for stats:', purchasesError);
+      console.error('❌ Error fetching purchases for stats:', purchasesError);
       throw purchasesError;
     }
+
+    console.log('📊 統計用データ取得結果:', {
+      count: purchases?.length || 0,
+      data: purchases?.slice(0, 3)
+    });
 
     const totalTransactionAmount = purchases?.reduce((sum, p) => sum + (p.winning_bid_amount || 0), 0) || 0;
     const totalTalksCompleted = purchases?.length || 0;
 
-    console.log('Stats:', { totalTransactionAmount, totalTalksCompleted, purchaseCount: purchases?.length || 0 });
+    console.log('✅ 統計計算結果:', { totalTransactionAmount, totalTalksCompleted, purchaseCount: purchases?.length || 0 });
 
     // 平均評価を取得（全インフルエンサーの平均）
     const { data: influencers, error: influencersError } = await supabase
