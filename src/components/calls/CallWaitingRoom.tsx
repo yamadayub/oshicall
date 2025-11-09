@@ -40,7 +40,8 @@ export default function CallWaitingRoom({
         console.log('✅ CallWaitingRoom: ルーム作成成功', result);
         setRoomData(result);
         setTimeUntilStart(result.timeUntilStart);
-        setCanJoin(result.timeUntilStart <= 15 * 60);
+        // 開始時刻になったら入室可能（0秒以下）
+        setCanJoin(result.timeUntilStart <= 0);
         setLoading(false);
       } catch (err: any) {
         console.error('❌ CallWaitingRoom: ルーム作成エラー', err);
@@ -100,8 +101,8 @@ export default function CallWaitingRoom({
   }, []);
 
   const formatCountdown = (seconds: number) => {
-    if (seconds < 0) return '通話時間になりました';
-    
+    if (seconds <= 0) return '通話時間になりました';
+
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
@@ -256,14 +257,24 @@ export default function CallWaitingRoom({
           disabled={!canJoin || !cameraPermission || !micPermission}
           className="w-full py-6 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-2xl font-bold text-xl hover:from-pink-600 hover:to-purple-700 transition-all duration-200 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 disabled:transform-none"
         >
-          {!canJoin ? `${formatCountdown(timeUntilStart)}後に入室可能` : '🎥 通話ルームに入る'}
+          {timeUntilStart <= 0 ? '🎥 通話を開始する' : `⏰ ${formatCountdown(timeUntilStart)}後に開始できます`}
         </button>
+
+        {!canJoin && timeUntilStart > 0 && (
+          <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <p className="text-sm text-blue-800 text-center">
+              💡 待機室に入室しています。相手の参加状況を確認できます。<br />
+              予定時刻になると通話を開始できます。
+            </p>
+          </div>
+        )}
 
         {/* 注意事項 */}
         <div className="mt-6 bg-white rounded-lg shadow p-6">
           <h3 className="font-bold text-gray-900 mb-3">📝 通話の注意事項</h3>
           <ul className="space-y-2 text-sm text-gray-700">
-            <li>• 通話開始の15分前から入室できます</li>
+            <li>• 待機室にはいつでも入室できます</li>
+            <li>• 通話は予定時刻になると開始できます</li>
             <li>• カメラとマイクの許可が必要です</li>
             <li>• 通話時間は{durationMinutes}分です</li>
             <li>• 時間になると自動的に終了します</li>

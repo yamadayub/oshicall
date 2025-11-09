@@ -94,15 +94,8 @@ export default function CallPage() {
         if (data.call_status === 'completed') {
           setState('ended');
         } else {
-          const scheduledTime = new Date(callSlot.scheduled_start_time);
-          const now = new Date();
-          const minutesUntilStart = (scheduledTime.getTime() - now.getTime()) / 60000;
-
-          if (minutesUntilStart <= 15) {
-            setState('ready');
-          } else {
-            setState('waiting');
-          }
+          // 待機室にはいつでも入室可能
+          setState('ready');
         }
 
       } catch (err: any) {
