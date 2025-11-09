@@ -12,9 +12,10 @@ interface TalkCardProps {
   onSelect: (talk: TalkSession) => void;
   isFollowing?: boolean;
   onFollowChange?: (isFollowing: boolean) => void;
+  showFanProfile?: boolean; // If true, navigate to fan profile instead of influencer page
 }
 
-export default function TalkCard({ talk, onSelect, isFollowing: initialIsFollowing, onFollowChange }: TalkCardProps) {
+export default function TalkCard({ talk, onSelect, isFollowing: initialIsFollowing, onFollowChange, showFanProfile }: TalkCardProps) {
   const { supabaseUser } = useAuth();
   const navigate = useNavigate();
   const [isFollowing, setIsFollowing] = useState(initialIsFollowing ?? false);
@@ -87,7 +88,8 @@ export default function TalkCard({ talk, onSelect, isFollowing: initialIsFollowi
           <button
             onClick={(e) => {
               e.stopPropagation();
-              navigate(`/i/${talk.influencer.id}`);
+              // If showFanProfile is true, navigate to fan profile; otherwise, navigate to influencer page
+              navigate(showFanProfile ? `/fan/${talk.influencer.id}` : `/i/${talk.influencer.id}`);
             }}
             className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
           >

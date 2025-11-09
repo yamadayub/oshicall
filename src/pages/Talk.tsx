@@ -140,6 +140,7 @@ export default function Talk() {
                       key={talk.id}
                       talk={talk}
                       onSelect={handleTalkSelect}
+                      showFanProfile={isInfluencer}
                     />
                   ))}
                 </div>
@@ -183,9 +184,10 @@ export default function Talk() {
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {pastTalks.map((talk) => (
                     <div key={talk.id} className="relative">
-                      <TalkCard 
-                        talk={talk} 
+                      <TalkCard
+                        talk={talk}
                         onSelect={handleTalkSelect}
+                        showFanProfile={isInfluencer}
                       />
                       {/* Completed Badge */}
                       <div className="absolute top-2 right-2 bg-green-500 text-white px-2 py-1 rounded-full text-xs font-bold">
