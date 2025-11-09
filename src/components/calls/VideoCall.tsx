@@ -26,6 +26,7 @@ export default function VideoCall({
   const containerRef = useRef<HTMLDivElement>(null);
   const initializingRef = useRef(false); // 初期化中フラグ
   const countdownStartedRef = useRef(false); // カウントダウン開始フラグ
+  const callStartTimeRef = useRef<Date | null>(null); // 通話開始時刻
   const [isJoined, setIsJoined] = useState(false);
   const [participantCount, setParticipantCount] = useState(0);
   const [influencerJoined, setInfluencerJoined] = useState(false);
@@ -130,6 +131,7 @@ export default function VideoCall({
         if (status.participants.influencer_joined && !countdownStartedRef.current) {
           console.log('✅ インフルエンサーが入室 - カウントダウン開始');
           countdownStartedRef.current = true;
+          callStartTimeRef.current = new Date(); // 通話開始時刻を記録
           setCountdownActive(true);
         }
       } catch (error) {
@@ -145,24 +147,25 @@ export default function VideoCall({
 
   // 残り時間カウントダウン（インフルエンサー入室後のみ）
   useEffect(() => {
-    if (!countdownActive) return;
+    if (!countdownActive || !callStartTimeRef.current) return;
 
     const timer = setInterval(() => {
-      setRemainingTime(prev => {
-        const newTime = Math.max(0, prev - 1/60); // 1秒ずつ減少
+      const now = new Date();
+      const elapsedMinutes = (now.getTime() - callStartTimeRef.current!.getTime()) / (1000 * 60);
+      const newRemainingTime = Math.max(0, durationMinutes - elapsedMinutes);
 
-        // 時間切れで自動終了
-        if (newTime <= 0) {
-          console.log('⏰ 時間切れ - 自動終了');
-          handleEndCall();
-        }
+      setRemainingTime(newRemainingTime);
 
-        return newTime;
-      });
+      // 時間切れで自動終了
+      if (newRemainingTime <= 0) {
+        console.log('⏰ 時間切れ - 自動終了');
+        handleEndCall();
+        clearInterval(timer);
+      }
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [countdownActive]);
+  }, [countdownActive, durationMinutes]);
 
   const handleEndCall = async () => {
     if (isEnding) return;
