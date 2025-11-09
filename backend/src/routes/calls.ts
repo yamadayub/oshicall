@@ -64,7 +64,7 @@ router.post('/create-room', async (req: Request, res: Response) => {
       });
     }
 
-    // 4. 時刻確認（15分前から入室可能）
+    // 4. call_slotsの取得と時刻計算
     const callSlot = Array.isArray(purchasedSlot.call_slots)
       ? purchasedSlot.call_slots[0]
       : purchasedSlot.call_slots;
@@ -84,20 +84,14 @@ router.post('/create-room', async (req: Request, res: Response) => {
       minutesUntilStart: minutesUntilStart.toFixed(2),
     });
 
-    if (minutesUntilStart > 15) {
-      console.warn(`⚠️ 時間外アクセス: ${minutesUntilStart}分前`);
-      return res.status(400).json({
-        error: `通話は${Math.ceil(minutesUntilStart)}分後に開始できます`,
-        time_until_start: Math.ceil(minutesUntilStart),
-      });
-    }
+    // 待機室にはいつでも入室可能（15分制限を削除）
 
     let roomUrl = '';
     let roomName = purchasedSlot.video_call_room_id;
 
-    // 5. ルームが未作成の場合は作成
+    // 5. ルームが未作成の場合は作成（待機室への入室）
     if (!roomName) {
-      console.log('🔵 新規ルーム作成開始');
+      console.log('🔵 新規ルーム作成開始（待機室）');
       try {
         const room = await createDailyRoom(
           purchasedSlotId,
@@ -109,7 +103,7 @@ router.post('/create-room', async (req: Request, res: Response) => {
         roomUrl = room.roomUrl;
         console.log('✅ Daily.coルーム作成完了:', { roomName, roomUrl });
 
-        // Supabaseに保存
+        // Supabaseに保存（待機室への入室なので joined_at は記録しない）
         const { error: updateError } = await supabase
           .from('purchased_slots')
           .update({
@@ -123,7 +117,7 @@ router.post('/create-room', async (req: Request, res: Response) => {
           throw updateError;
         }
 
-        console.log('✅ ルーム情報をSupabaseに保存:', roomName);
+        console.log('✅ ルーム情報をSupabaseに保存（待機室）:', roomName);
       } catch (roomError: any) {
         console.error('❌ ルーム作成エラー:', roomError);
         return res.status(500).json({
@@ -132,12 +126,12 @@ router.post('/create-room', async (req: Request, res: Response) => {
         });
       }
     } else {
-      // 既存のルームURLを構築
+      // 既存のルームURLを構築（待機室に再入室）
       const domain = process.env.DAILY_DOMAIN || 'oshicall.daily.co';
       roomUrl = domain.includes('.daily.co')
         ? `https://${domain}/${roomName}`
         : `https://${domain}.daily.co/${roomName}`;
-      console.log('⚠️ 既存のルームを使用:', roomName);
+      console.log('✅ 既存のルームを使用（待機室に入室）:', roomName);
     }
 
     // 6. ミーティングトークンを生成
@@ -212,13 +206,16 @@ router.post('/join-room', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'ルームがまだ作成されていません' });
     }
 
-    // 4. 参加日時を記録
+    // 4. 参加日時を記録（実際の通話開始時）
     const updateData: any = {};
-    
+    const currentTime = new Date().toISOString();
+
     if (isInfluencer) {
-      updateData.influencer_joined_at = new Date().toISOString();
+      updateData.influencer_joined_at = currentTime;
+      console.log('🔵 インフルエンサーが通話に参加:', currentTime);
     } else {
-      updateData.fan_joined_at = new Date().toISOString();
+      updateData.fan_joined_at = currentTime;
+      console.log('🔵 ファンが通話に参加:', currentTime);
     }
 
     // 5. call_statusを更新
@@ -228,13 +225,19 @@ router.post('/join-room', async (req: Request, res: Response) => {
 
     // 6. call_started_atを記録（初回のみ）
     if (!purchasedSlot.call_started_at) {
-      updateData.call_started_at = new Date().toISOString();
+      updateData.call_started_at = currentTime;
+      console.log('🔵 通話開始時刻を記録:', currentTime);
     }
 
-    await supabase
+    const { error: updateError } = await supabase
       .from('purchased_slots')
       .update(updateData)
       .eq('id', purchasedSlotId);
+
+    if (updateError) {
+      console.error('❌ 参加情報更新エラー:', updateError);
+      throw updateError;
+    }
 
     console.log('✅ 参加情報を記録:', updateData);
 
@@ -371,7 +374,15 @@ router.get('/status/:purchasedSlotId', async (req: Request, res: Response) => {
     const scheduledTime = new Date(callSlot.scheduled_start_time);
     const now = new Date();
     const timeUntilStartSeconds = Math.floor((scheduledTime.getTime() - now.getTime()) / 1000);
-    const canJoin = timeUntilStartSeconds <= (15 * 60); // 15分前から参加可能
+    // 開始時刻になったら通話開始可能（0秒以下）
+    const canJoin = timeUntilStartSeconds <= 0;
+
+    console.log('🔵 ステータス情報:', {
+      timeUntilStartSeconds,
+      canJoin,
+      influencer_joined: !!purchasedSlot.influencer_joined_at,
+      fan_joined: !!purchasedSlot.fan_joined_at,
+    });
 
     res.json({
       status: purchasedSlot.call_status,

@@ -116,9 +116,29 @@ export default function CallWaitingRoom({
     }
   };
 
-  const handleJoinClick = () => {
-    if (roomData) {
+  const handleJoinClick = async () => {
+    if (!roomData) return;
+
+    try {
+      // 通話開始時に参加情報を記録
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || ''}/api/calls/join-room`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ purchasedSlotId, userId }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || '参加記録に失敗しました');
+      }
+
+      console.log('✅ 通話参加を記録しました');
+
+      // Daily.coルームに参加
       onJoinCall(roomData.roomUrl, roomData.token);
+    } catch (err: any) {
+      console.error('❌ 参加記録エラー:', err);
+      setError(err.message || '参加処理に失敗しました');
     }
   };
 
