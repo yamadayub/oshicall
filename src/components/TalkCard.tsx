@@ -88,8 +88,18 @@ export default function TalkCard({ talk, onSelect, isFollowing: initialIsFollowi
           <button
             onClick={(e) => {
               e.stopPropagation();
+              console.log('🔵 Profile button clicked:', {
+                showFanProfile,
+                influencerId: talk.influencer.id,
+                influencerName: talk.influencer.name,
+                targetPath: showFanProfile ? `/fan/${talk.influencer.id}` : `/i/${talk.influencer.id}`,
+              });
               // If showFanProfile is true, navigate to fan profile; otherwise, navigate to influencer page
-              navigate(showFanProfile ? `/fan/${talk.influencer.id}` : `/i/${talk.influencer.id}`);
+              if (talk.influencer.id) {
+                navigate(showFanProfile ? `/fan/${talk.influencer.id}` : `/i/${talk.influencer.id}`);
+              } else {
+                console.error('❌ influencer.id is empty!', talk);
+              }
             }}
             className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
           >
