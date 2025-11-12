@@ -46,7 +46,8 @@ export type Fan = User;
 
 export interface CallSlot {
   id: string;
-  user_id: string;
+  user_id: string; // インフルエンサーのuser_id
+  fan_user_id: string | null; // 落札者（ファン）のuser_id（オークション終了後に設定）
   title: string;
   description: string | null;
   scheduled_start_time: string;
