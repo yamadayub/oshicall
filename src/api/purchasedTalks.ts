@@ -145,17 +145,31 @@ export const getInfluencerHostedTalks = async (userId: string) => {
 
     // ファン情報を取得
     const fanIds = [...new Set(purchasedSlots.map((slot: any) => slot.fan_user_id))];
-    const { data: fans } = await supabase
+    console.log('🔍 Fan IDs to fetch:', fanIds);
+
+    const { data: fans, error: fansError } = await supabase
       .from('users')
       .select('id, display_name, profile_image_url')
       .in('id', fanIds);
 
+    if (fansError) {
+      console.error('❌ Error fetching fans:', fansError);
+    }
+
+    console.log('✅ Fetched fans:', fans);
     const fansMap = new Map(fans?.map(f => [f.id, f]) || []);
 
     // TalkSession形式に変換
     const talkSessions: TalkSession[] = purchasedSlots.map((slot: any) => {
       const callSlot = slot.call_slots;
       const fan = fansMap.get(slot.fan_user_id);
+
+      console.log('🔍 Processing slot:', {
+        fan_user_id: slot.fan_user_id,
+        fan: fan,
+        fanName: fan?.display_name,
+        fanAvatar: fan?.profile_image_url,
+      });
 
       // 予定のTalkか過去のTalkかを判定
       const now = new Date();
@@ -194,6 +208,12 @@ export const getInfluencerHostedTalks = async (userId: string) => {
         is_female_only: false,
       };
     });
+
+    console.log('✅ Converted TalkSessions:', talkSessions.map(t => ({
+      id: t.id,
+      influencerName: t.influencer.name,
+      influencerAvatar: t.influencer.avatar_url,
+    })));
 
     return talkSessions;
   } catch (error) {
