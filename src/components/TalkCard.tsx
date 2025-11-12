@@ -22,11 +22,11 @@ export default function TalkCard({ talk, onSelect, isFollowing: initialIsFollowi
   const [isFollowLoading, setIsFollowLoading] = useState(false);
 
   useEffect(() => {
-    // 初期フォロー状態を確認
-    if (supabaseUser && !initialIsFollowing) {
+    // 初期フォロー状態を確認（インフルエンサー視点ではスキップ）
+    if (supabaseUser && !initialIsFollowing && !showFanProfile) {
       checkFollowStatus(supabaseUser.id, talk.influencer.id).then(setIsFollowing);
     }
-  }, [supabaseUser, talk.influencer.id, initialIsFollowing]);
+  }, [supabaseUser, talk.influencer.id, initialIsFollowing, showFanProfile]);
 
   const handleFollowClick = async (e: React.MouseEvent) => {
     e.stopPropagation(); // カードのクリックイベントを防ぐ
@@ -110,14 +110,14 @@ export default function TalkCard({ talk, onSelect, isFollowing: initialIsFollowi
             />
             <div className="flex flex-col">
               {showFanProfile && (
-                <span className="text-xs text-white/80 drop-shadow-lg">落札者</span>
+                <span className="text-xs text-white/80 drop-shadow-lg">Talk相手</span>
               )}
               <span className="text-xl font-bold text-white drop-shadow-lg">
                 {talk.influencer.name}
               </span>
             </div>
           </button>
-          {supabaseUser && supabaseUser.id !== talk.influencer.id && (
+          {supabaseUser && supabaseUser.id !== talk.influencer.id && !showFanProfile && (
             <button
               onClick={handleFollowClick}
               disabled={isFollowLoading}
