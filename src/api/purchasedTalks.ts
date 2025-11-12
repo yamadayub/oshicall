@@ -143,9 +143,19 @@ export const getInfluencerHostedTalks = async (userId: string) => {
       return [];
     }
 
+    // purchased_slotsの生データを確認
+    console.log('🔍 Raw purchased_slots data:', purchasedSlots.map(slot => ({
+      id: slot.id,
+      fan_user_id: slot.fan_user_id,
+      fan_user_id_type: typeof slot.fan_user_id,
+      influencer_user_id: slot.influencer_user_id,
+      all_keys: Object.keys(slot),
+    })));
+
     // ファン情報を取得
     const fanIds = [...new Set(purchasedSlots.map((slot: any) => slot.fan_user_id))].filter(id => id);
     console.log('🔍 Fan IDs to fetch:', fanIds);
+    console.log('🔍 Fan IDs types:', fanIds.map(id => typeof id));
 
     if (fanIds.length === 0) {
       console.warn('⚠️ No fan IDs found in purchased_slots');
@@ -196,12 +206,31 @@ export const getInfluencerHostedTalks = async (userId: string) => {
 
     if (fansError) {
       console.error('❌ Error fetching fans:', fansError);
+      console.error('❌ Supabase error details:', {
+        message: fansError.message,
+        details: fansError.details,
+        hint: fansError.hint,
+        code: fansError.code,
+      });
     }
 
-    console.log('✅ Fetched fans:', fans);
-    console.log('🔍 Fan IDs:', fanIds);
-    console.log('🔍 Fans map will be:', fans?.map(f => `${f.id}: ${f.display_name}`));
+    console.log('✅ Fetched fans raw data:', fans);
+    console.log('🔍 Fan IDs to match:', fanIds);
+    console.log('🔍 Number of fans fetched:', fans?.length || 0);
+    console.log('🔍 Number of fan IDs requested:', fanIds.length);
+
+    if (fans && fans.length > 0) {
+      console.log('🔍 Fans map will be:', fans.map(f => `${f.id}: ${f.display_name}`));
+      fans.forEach(f => {
+        console.log('🔍 Fan in result:', { id: f.id, id_type: typeof f.id, name: f.display_name });
+      });
+    } else {
+      console.warn('⚠️ No fans returned from Supabase query!');
+    }
+
     const fansMap = new Map(fans?.map(f => [f.id, f]) || []);
+    console.log('🔍 fansMap size:', fansMap.size);
+    console.log('🔍 fansMap keys:', Array.from(fansMap.keys()));
 
     // TalkSession形式に変換
     const talkSessions: TalkSession[] = purchasedSlots.map((slot: any) => {
