@@ -134,6 +134,7 @@ export const getInfluencerHostedTalks = async (userId: string) => {
         )
       `)
       .eq('user_id', userId)
+      .or('fan_user_id.not.is.null,purchased_slots.id.not.is.null')
       .order('scheduled_start_time', { ascending: true });
 
     if (error) {
@@ -143,15 +144,35 @@ export const getInfluencerHostedTalks = async (userId: string) => {
 
     // データが空の場合は空の配列を返す
     if (!callSlots || callSlots.length === 0) {
+      console.log('⚠️ call_slotsが空です');
       return [];
     }
 
-    // purchased_slotsが存在するcall_slotsのみをフィルタリング
-    const validCallSlots = callSlots.filter((cs: any) => 
-      cs.purchased_slots && cs.purchased_slots.length > 0
-    );
+    console.log('🔍 取得したcall_slots数:', callSlots.length);
+
+    // purchased_slots!innerを使用しているので、purchased_slotsが存在するcall_slotsのみが取得される
+    // 念のため、fan_user_idまたはpurchased_slotsが存在するcall_slotsを確認
+    const validCallSlots = callSlots.filter((cs: any) => {
+      const hasFanUserId = cs.fan_user_id !== null && cs.fan_user_id !== undefined;
+      const hasPurchasedSlot = cs.purchased_slots && cs.purchased_slots.length > 0;
+      const isValid = hasFanUserId || hasPurchasedSlot;
+      
+      if (!isValid) {
+        console.warn('⚠️ 無効なcall_slot:', {
+          id: cs.id,
+          title: cs.title,
+          fan_user_id: cs.fan_user_id,
+          purchased_slots: cs.purchased_slots
+        });
+      }
+      
+      return isValid;
+    });
+
+    console.log('🔍 有効なcall_slots数:', validCallSlots.length, '/', callSlots.length);
 
     if (validCallSlots.length === 0) {
+      console.warn('⚠️ 有効なcall_slotsがありません。全call_slots:', callSlots);
       return [];
     }
 
