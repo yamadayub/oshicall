@@ -122,7 +122,7 @@ export const getInfluencerHostedTalks = async (userId: string) => {
         call_status,
         winning_bid_amount,
         fan_user_id,
-        fan:fan_user_id (
+        fan:users!fan_user_id (
           id,
           display_name,
           profile_image_url
