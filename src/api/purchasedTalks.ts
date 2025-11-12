@@ -148,8 +148,8 @@ export const getInfluencerHostedTalks = async (userId: string) => {
 
     // fan_user_idのリストを取得して、usersテーブルから一括取得
     const fanUserIds = callSlots
-      .map((cs: any) => cs.fan_user_id)
-      .filter((id: string | null) => id !== null) as string[];
+      .map((cs: any) => String(cs.fan_user_id))
+      .filter((id: string) => id && id !== 'null' && id !== 'undefined');
 
     let fanUsersMap: { [key: string]: any } = {};
     if (fanUserIds.length > 0) {
@@ -159,11 +159,11 @@ export const getInfluencerHostedTalks = async (userId: string) => {
         .in('id', fanUserIds);
 
       if (fanError) {
-        console.error('Fan users取得エラー:', fanError);
-      } else if (fanUsers) {
-        // マップを作成して高速検索可能にする
+        console.error('❌ Fan users取得エラー:', fanError);
+      } else if (fanUsers && fanUsers.length > 0) {
+        // マップを作成して高速検索可能にする（IDを文字列に変換してキーとして使用）
         fanUsersMap = fanUsers.reduce((acc: any, user: any) => {
-          acc[user.id] = user;
+          acc[String(user.id)] = user;
           return acc;
         }, {});
       }
@@ -171,16 +171,10 @@ export const getInfluencerHostedTalks = async (userId: string) => {
 
     // TalkSession形式に変換（call_slotsから直接fan情報を取得）
     const talkSessions: TalkSession[] = callSlots.map((callSlot: any) => {
-      const fan = fanUsersMap[callSlot.fan_user_id];
+      // fan_user_idを文字列に変換してからマップから検索
+      const fanUserIdStr = String(callSlot.fan_user_id);
+      const fan = fanUsersMap[fanUserIdStr];
       const purchasedSlot = callSlot.purchased_slots?.[0]; // 1:1関係
-      
-      // デバッグログ
-      if (!fan && callSlot.fan_user_id) {
-        console.warn('⚠️ fan情報が取得できませんでした:', {
-          callSlotId: callSlot.id,
-          fanUserId: callSlot.fan_user_id
-        });
-      }
 
       // 予定のTalkか過去のTalkかを判定
       const now = new Date();
