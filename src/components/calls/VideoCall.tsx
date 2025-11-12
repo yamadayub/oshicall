@@ -128,6 +128,13 @@ export default function VideoCall({
         setInfluencerJoined(status.participants.influencer_joined);
         setFanJoined(status.participants.fan_joined);
 
+        // 相手が通話を終了した場合、即座に終了処理を実行
+        if (status.status === 'completed' && !isEnding) {
+          console.log('⚠️ 相手が通話を終了しました - 自動終了');
+          handleEndCall();
+          return;
+        }
+
         // インフルエンサーが入室したらカウントダウン開始
         if (status.participants.influencer_joined && !countdownStartedRef.current) {
           console.log('✅ インフルエンサーが入室 - カウントダウン開始');
@@ -144,7 +151,7 @@ export default function VideoCall({
     pollStatus(); // 初回実行
 
     return () => clearInterval(interval);
-  }, [isJoined, purchasedSlotId]);
+  }, [isJoined, purchasedSlotId, isEnding]);
 
   // 残り時間カウントダウン（インフルエンサー入室後のみ）
   useEffect(() => {

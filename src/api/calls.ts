@@ -27,7 +27,8 @@ export interface EndCallResponse {
 }
 
 export interface CallStatusResponse {
-  status: string;
+  status: string; // call_status (waiting, in_progress, completed)
+  call_status?: string; // alias for status
   scheduled_start_time: string;
   duration_minutes: number;
   time_until_start_seconds: number;

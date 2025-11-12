@@ -302,6 +302,18 @@ router.post('/end-call', async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'アクセス権限がありません' });
     }
 
+    // 2.5. 既に終了している場合は既存のdurationを返す
+    if (purchasedSlot.call_status === 'completed') {
+      console.log('✅ 通話は既に終了済み:', {
+        actualDuration: purchasedSlot.call_actual_duration_minutes
+      });
+      return res.json({
+        success: true,
+        duration: purchasedSlot.call_actual_duration_minutes || 0,
+        message: '通話は既に終了しています',
+      });
+    }
+
     // 3. 通話終了情報を更新
     const endTime = new Date();
     let actualDuration = 0;
