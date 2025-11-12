@@ -36,6 +36,17 @@ export default function Talk() {
 
         setUpcomingTalks(upcoming);
         setPastTalks(completed);
+
+        // デバッグログ：インフルエンサー視点でのデータ確認
+        if (isInfluencer && upcoming.length > 0) {
+          console.log('🔍 インフルエンサー視点 - 予定Talk:', upcoming.map(t => ({
+            id: t.id,
+            title: t.title,
+            influencer_id: t.influencer.id,
+            influencer_name: t.influencer.name,
+            purchased_slot_id: t.purchased_slot_id,
+          })));
+        }
       } catch (err) {
         console.error('Talk取得エラー:', err);
         // 実際のデータベースエラーの場合のみエラーを表示

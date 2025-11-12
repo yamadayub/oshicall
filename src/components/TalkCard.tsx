@@ -108,9 +108,14 @@ export default function TalkCard({ talk, onSelect, isFollowing: initialIsFollowi
               alt={talk.influencer.name}
               className="h-10 w-10 rounded-full border-2 border-white shadow-lg object-cover"
             />
-            <span className="text-xl font-bold text-white drop-shadow-lg">
-              {talk.influencer.name}
-            </span>
+            <div className="flex flex-col">
+              {showFanProfile && (
+                <span className="text-xs text-white/80 drop-shadow-lg">落札者</span>
+              )}
+              <span className="text-xl font-bold text-white drop-shadow-lg">
+                {talk.influencer.name}
+              </span>
+            </div>
           </button>
           {supabaseUser && supabaseUser.id !== talk.influencer.id && (
             <button

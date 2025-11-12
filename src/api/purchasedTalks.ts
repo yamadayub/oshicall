@@ -144,8 +144,50 @@ export const getInfluencerHostedTalks = async (userId: string) => {
     }
 
     // ファン情報を取得
-    const fanIds = [...new Set(purchasedSlots.map((slot: any) => slot.fan_user_id))];
+    const fanIds = [...new Set(purchasedSlots.map((slot: any) => slot.fan_user_id))].filter(id => id);
     console.log('🔍 Fan IDs to fetch:', fanIds);
+
+    if (fanIds.length === 0) {
+      console.warn('⚠️ No fan IDs found in purchased_slots');
+      return purchasedSlots.map((slot: any) => {
+        const callSlot = slot.call_slots;
+        const now = new Date();
+        const talkDate = new Date(callSlot?.scheduled_start_time);
+        const isUpcoming = talkDate > now && slot.call_status !== 'completed';
+
+        return {
+          id: callSlot?.id || slot.id,
+          purchased_slot_id: slot.id,
+          influencer_id: userId,
+          influencer: {
+            id: slot.fan_user_id || '', // fan_user_idを直接使用
+            name: '購入者',
+            username: '購入者',
+            avatar_url: '/images/default-avatar.png',
+            description: '',
+            follower_count: 0,
+            total_earned: 0,
+            total_talks: 0,
+            rating: 0,
+            created_at: new Date().toISOString(),
+          },
+          title: callSlot?.title || 'Talk枠',
+          description: callSlot?.description || '',
+          host_message: callSlot?.description || 'Talk',
+          start_time: callSlot?.scheduled_start_time || new Date().toISOString(),
+          end_time: callSlot?.scheduled_start_time
+            ? new Date(new Date(callSlot.scheduled_start_time).getTime() + (callSlot.duration_minutes || 30) * 60000).toISOString()
+            : new Date().toISOString(),
+          auction_end_time: callSlot?.scheduled_start_time || new Date().toISOString(),
+          starting_price: slot.winning_bid_amount || 0,
+          current_highest_bid: slot.winning_bid_amount || 0,
+          status: isUpcoming ? 'won' : 'completed',
+          created_at: slot.purchased_at || new Date().toISOString(),
+          detail_image_url: callSlot?.thumbnail_url || '/images/talks/default.jpg',
+          is_female_only: false,
+        };
+      });
+    }
 
     const { data: fans, error: fansError } = await supabase
       .from('users')
@@ -157,6 +199,8 @@ export const getInfluencerHostedTalks = async (userId: string) => {
     }
 
     console.log('✅ Fetched fans:', fans);
+    console.log('🔍 Fan IDs:', fanIds);
+    console.log('🔍 Fans map will be:', fans?.map(f => `${f.id}: ${f.display_name}`));
     const fansMap = new Map(fans?.map(f => [f.id, f]) || []);
 
     // TalkSession形式に変換
@@ -167,10 +211,14 @@ export const getInfluencerHostedTalks = async (userId: string) => {
       console.log('🔍 Processing slot:', {
         slot_id: slot.id,
         fan_user_id: slot.fan_user_id,
+        fan_user_id_type: typeof slot.fan_user_id,
         fan_from_map: fan,
         fanName: fan?.display_name,
         fanAvatar: fan?.profile_image_url,
         fanId: fan?.id,
+        has_fan: !!fan,
+        map_has_key: fansMap.has(slot.fan_user_id),
+        map_size: fansMap.size,
       });
 
       // 予定のTalkか過去のTalkかを判定
@@ -179,9 +227,16 @@ export const getInfluencerHostedTalks = async (userId: string) => {
       const isUpcoming = talkDate > now && slot.call_status !== 'completed';
 
       // fan?.idがundefinedの場合はslot.fan_user_idを使う（重要！）
-      const fanId = fan?.id || slot.fan_user_id || '';
+      // slot.fan_user_idを常に優先して使用
+      const fanId = slot.fan_user_id || fan?.id || '';
 
-      console.log('🔍 Final fan ID for slot:', { slot_id: slot.id, fanId, fan_user_id: slot.fan_user_id });
+      console.log('🔍 Final fan ID for slot:', {
+        slot_id: slot.id,
+        fanId,
+        source: slot.fan_user_id ? 'slot.fan_user_id' : (fan?.id ? 'fan.id' : 'empty'),
+        fan_user_id: slot.fan_user_id,
+        fan_id_from_map: fan?.id,
+      });
 
       return {
         id: callSlot?.id || slot.id,

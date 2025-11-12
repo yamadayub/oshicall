@@ -195,24 +195,35 @@ export default function FanProfile() {
                 {fan.display_name}
               </h1>
               <span className="bg-blue-500 text-white px-3 py-1 rounded-full text-xs font-bold flex-shrink-0">
-                ファン
+                落札者
               </span>
             </div>
             {fan.bio && (
-              <p className="text-gray-700 mb-4">{fan.bio}</p>
+              <p className="text-gray-700 mb-4 line-clamp-3">{fan.bio}</p>
             )}
-            <div className="flex flex-wrap gap-4 text-sm text-gray-700">
-              <div className="flex items-center space-x-1">
-                <DollarSign className="h-4 w-4 text-green-600" />
-                <span>総支払額: <span className="font-bold text-green-600">¥{formatPrice(stats.totalSpent)}</span></span>
+
+            {/* Stats Grid */}
+            <div className="grid grid-cols-3 gap-4 mt-4">
+              <div className="bg-white rounded-lg p-3 text-center shadow-sm">
+                <div className="flex items-center justify-center mb-1">
+                  <DollarSign className="h-5 w-5 text-green-600" />
+                </div>
+                <div className="text-xs text-gray-600 mb-1">総支払額</div>
+                <div className="text-lg font-bold text-green-600">¥{formatPrice(stats.totalSpent)}</div>
               </div>
-              <div className="flex items-center space-x-1">
-                <Phone className="h-4 w-4 text-blue-600" />
-                <span>購入数: <span className="font-bold text-blue-600">{stats.totalPurchases}</span></span>
+              <div className="bg-white rounded-lg p-3 text-center shadow-sm">
+                <div className="flex items-center justify-center mb-1">
+                  <Phone className="h-5 w-5 text-blue-600" />
+                </div>
+                <div className="text-xs text-gray-600 mb-1">購入回数</div>
+                <div className="text-lg font-bold text-blue-600">{stats.totalPurchases}回</div>
               </div>
-              <div className="flex items-center space-x-1">
-                <Star className="h-4 w-4 text-yellow-500" />
-                <span>完了: <span className="font-bold text-purple-600">{stats.completedTalks}</span></span>
+              <div className="bg-white rounded-lg p-3 text-center shadow-sm">
+                <div className="flex items-center justify-center mb-1">
+                  <Star className="h-5 w-5 text-yellow-500" />
+                </div>
+                <div className="text-xs text-gray-600 mb-1">完了</div>
+                <div className="text-lg font-bold text-purple-600">{stats.completedTalks}回</div>
               </div>
             </div>
           </div>
