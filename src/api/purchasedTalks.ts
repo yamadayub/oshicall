@@ -165,10 +165,12 @@ export const getInfluencerHostedTalks = async (userId: string) => {
       const fan = fansMap.get(slot.fan_user_id);
 
       console.log('🔍 Processing slot:', {
+        slot_id: slot.id,
         fan_user_id: slot.fan_user_id,
-        fan: fan,
+        fan_from_map: fan,
         fanName: fan?.display_name,
         fanAvatar: fan?.profile_image_url,
+        fanId: fan?.id,
       });
 
       // 予定のTalkか過去のTalkかを判定
@@ -176,12 +178,17 @@ export const getInfluencerHostedTalks = async (userId: string) => {
       const talkDate = new Date(callSlot?.scheduled_start_time);
       const isUpcoming = talkDate > now && slot.call_status !== 'completed';
 
+      // fan?.idがundefinedの場合はslot.fan_user_idを使う（重要！）
+      const fanId = fan?.id || slot.fan_user_id || '';
+
+      console.log('🔍 Final fan ID for slot:', { slot_id: slot.id, fanId, fan_user_id: slot.fan_user_id });
+
       return {
         id: callSlot?.id || slot.id,
         purchased_slot_id: slot.id, // purchased_slots.id for joining calls
         influencer_id: userId,
         influencer: {
-          id: fan?.id || '',
+          id: fanId, // ファンIDをここに格納（インフルエンサー視点では「相手」がファン）
           name: fan?.display_name || '購入者',
           username: fan?.display_name || '購入者',
           avatar_url: fan?.profile_image_url || '/images/default-avatar.png',
