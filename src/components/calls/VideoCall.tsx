@@ -58,7 +58,7 @@ export default function VideoCall({
             border: 'none',
             borderRadius: '12px',
           },
-          showLeaveButton: true,
+          showLeaveButton: false, // カスタムボタンを使用するため無効化
           showFullscreenButton: true,
           showLocalVideo: true,
           showParticipantsBar: true,
@@ -84,7 +84,8 @@ export default function VideoCall({
 
         callFrame.on('left-meeting', async (event: any) => {
           console.log('⚠️ 通話を退出しました');
-          await handleEndCall();
+          // handleEndCallは既に呼ばれているはずなので、ここでは何もしない
+          // （handleEndCallでleaveを呼ぶため、このイベントが発火する）
         });
 
         callFrame.on('error', (event: any) => {

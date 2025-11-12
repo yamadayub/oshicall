@@ -28,6 +28,7 @@ export default function CallPage() {
   const [roomData, setRoomData] = useState<{ roomUrl: string; token: string } | null>(null);
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState('');
+  const [influencer, setInfluencer] = useState<any>(null);
 
   useEffect(() => {
     const loadCallData = async () => {
@@ -107,6 +108,23 @@ export default function CallPage() {
 
     loadCallData();
   }, [purchasedSlotId, user, supabaseUser]);
+
+  // インフルエンサー情報の取得（通話終了時用）
+  useEffect(() => {
+    if (state === 'ended' && purchasedSlot) {
+      const fetchInfluencer = async () => {
+        const { data } = await supabase
+          .from('users')
+          .select('display_name, profile_image_url')
+          .eq('id', purchasedSlot.influencer_user_id)
+          .single();
+
+        setInfluencer(data);
+      };
+
+      fetchInfluencer();
+    }
+  }, [state, purchasedSlot]);
 
   const handleJoinCall = async (roomUrl: string, token: string) => {
     setState('joining');
@@ -221,25 +239,6 @@ export default function CallPage() {
       />
     );
   }
-
-  // インフルエンサー情報の取得（通話終了時用）
-  const [influencer, setInfluencer] = useState<any>(null);
-
-  useEffect(() => {
-    if (state === 'ended' && purchasedSlot) {
-      const fetchInfluencer = async () => {
-        const { data } = await supabase
-          .from('users')
-          .select('display_name, profile_image_url')
-          .eq('id', purchasedSlot.influencer_user_id)
-          .single();
-        
-        setInfluencer(data);
-      };
-
-      fetchInfluencer();
-    }
-  }, [state, purchasedSlot]);
 
   // 通話終了・レビュー
   if (state === 'ended') {
