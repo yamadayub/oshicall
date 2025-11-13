@@ -66,28 +66,24 @@ export const getPurchasedTalks = async (userId: string) => {
       const isUpcoming = talkDate > now && purchasedSlot?.call_status !== 'completed';
 
       // 詳細ログ: 各Talk枠について、call_slotsとusersテーブルの情報をまとめて出力
-      console.log('📋 [getPurchasedTalks] Talk枠情報:', {
-        '=== Talk枠基本情報 ===': '',
-        'Talk枠ID': callSlot.id,
-        'Talk枠タイトル': callSlot.title,
-        '予定開始時刻': callSlot.scheduled_start_time,
-        '',
-        '=== call_slotsテーブルから取得 ===': '',
-        'call_slots.user_id (インフルエンサー)': influencerUserId,
-        'call_slots.fan_user_id (ファン)': fanUserId,
-        '',
-        '=== usersテーブルから取得 - インフルエンサー情報 ===': '',
-        'users.id': influencer?.id,
-        'users.display_name': influencer?.display_name,
-        'users.profile_image_url': influencer?.profile_image_url,
-        'users.average_rating': influencer?.average_rating,
-        '',
-        '=== usersテーブルから取得 - ファン情報 ===': '',
-        'users.id': fanUser?.id || '(未取得)',
-        'users.display_name': fanUser?.display_name || '(未取得)',
-        'users.profile_image_url': fanUser?.profile_image_url || '(未取得)',
-        'users.bio': fanUser?.bio || '(未取得)',
-      });
+      console.log('📋 [getPurchasedTalks] Talk枠情報:');
+      console.log('  === Talk枠基本情報 ===');
+      console.log('  Talk枠ID:', callSlot.id);
+      console.log('  Talk枠タイトル:', callSlot.title);
+      console.log('  予定開始時刻:', callSlot.scheduled_start_time);
+      console.log('  === call_slotsテーブルから取得 ===');
+      console.log('  call_slots.user_id (インフルエンサー):', influencerUserId);
+      console.log('  call_slots.fan_user_id (ファン):', fanUserId);
+      console.log('  === usersテーブルから取得 - インフルエンサー情報 ===');
+      console.log('  users.id:', influencer?.id);
+      console.log('  users.display_name:', influencer?.display_name);
+      console.log('  users.profile_image_url:', influencer?.profile_image_url);
+      console.log('  users.average_rating:', influencer?.average_rating);
+      console.log('  === usersテーブルから取得 - ファン情報 ===');
+      console.log('  users.id:', fanUser?.id || '(未取得)');
+      console.log('  users.display_name:', fanUser?.display_name || '(未取得)');
+      console.log('  users.profile_image_url:', fanUser?.profile_image_url || '(未取得)');
+      console.log('  users.bio:', fanUser?.bio || '(未取得)');
 
       const talkSession = {
         id: callSlot.id,
@@ -254,35 +250,30 @@ export const getInfluencerHostedTalks = async (userId: string) => {
       const isUpcoming = talkDate > now && purchasedSlot?.call_status !== 'completed';
 
       // 詳細ログ: 各Talk枠について、call_slotsとusersテーブルの情報をまとめて出力
-      console.log('📋 [getInfluencerHostedTalks] Talk枠情報:', {
-        '=== Talk枠基本情報 ===': '',
-        'Talk枠ID': callSlot.id,
-        'Talk枠タイトル': callSlot.title,
-        '予定開始時刻': callSlot.scheduled_start_time,
-        '',
-        '=== call_slotsテーブルから取得 ===': '',
-        'call_slots.user_id (インフルエンサー)': hostUserId,
-        'call_slots.fan_user_id (ファン)': fanUserId,
-        '',
-        '=== usersテーブルから取得 - インフルエンサー情報 ===': '',
-        'users.id': host?.id,
-        'users.display_name': host?.display_name,
-        'users.profile_image_url': host?.profile_image_url,
-        'users.bio': host?.bio,
-        'users.average_rating': host?.average_rating,
-        '',
-        '=== usersテーブルから取得 - ファン情報 ===': '',
-        'users.id': fan?.id || '(未取得)',
-        'users.display_name': fan?.display_name || '(未取得)',
-        'users.profile_image_url': fan?.profile_image_url || '(未取得)',
-        'users.bio': fan?.bio || '(未取得)',
-        'fanUsersMapに存在': fanUserId ? (fanUsersMap[String(fanUserId)] ? 'あり' : 'なし') : 'N/A',
-        '',
-        '=== purchased_slots情報 ===': '',
-        'purchased_slot.id': purchasedSlot?.id,
-        'purchased_slot.call_status': purchasedSlot?.call_status,
-        'purchased_slot.winning_bid_amount': purchasedSlot?.winning_bid_amount,
-      });
+      console.log('📋 [getInfluencerHostedTalks] Talk枠情報:');
+      console.log('  === Talk枠基本情報 ===');
+      console.log('  Talk枠ID:', callSlot.id);
+      console.log('  Talk枠タイトル:', callSlot.title);
+      console.log('  予定開始時刻:', callSlot.scheduled_start_time);
+      console.log('  === call_slotsテーブルから取得 ===');
+      console.log('  call_slots.user_id (インフルエンサー):', hostUserId);
+      console.log('  call_slots.fan_user_id (ファン):', fanUserId);
+      console.log('  === usersテーブルから取得 - インフルエンサー情報 ===');
+      console.log('  users.id:', host?.id);
+      console.log('  users.display_name:', host?.display_name);
+      console.log('  users.profile_image_url:', host?.profile_image_url);
+      console.log('  users.bio:', host?.bio);
+      console.log('  users.average_rating:', host?.average_rating);
+      console.log('  === usersテーブルから取得 - ファン情報 ===');
+      console.log('  users.id:', fan?.id || '(未取得)');
+      console.log('  users.display_name:', fan?.display_name || '(未取得)');
+      console.log('  users.profile_image_url:', fan?.profile_image_url || '(未取得)');
+      console.log('  users.bio:', fan?.bio || '(未取得)');
+      console.log('  fanUsersMapに存在:', fanUserId ? (fanUsersMap[String(fanUserId)] ? 'あり' : 'なし') : 'N/A');
+      console.log('  === purchased_slots情報 ===');
+      console.log('  purchased_slot.id:', purchasedSlot?.id);
+      console.log('  purchased_slot.call_status:', purchasedSlot?.call_status);
+      console.log('  purchased_slot.winning_bid_amount:', purchasedSlot?.winning_bid_amount);
 
       const talkSession = {
         id: callSlot.id,
