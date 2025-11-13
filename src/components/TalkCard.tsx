@@ -22,11 +22,28 @@ export default function TalkCard({ talk, onSelect, isFollowing: initialIsFollowi
   const [isFollowLoading, setIsFollowLoading] = useState(false);
 
   useEffect(() => {
+    // TalkCardに表示する情報を詳細ログ出力
+    console.log('🎴 [TalkCard] 表示情報:', {
+      'TalkCard表示モード': showFanProfile ? 'インフルエンサー視点（落札者を表示）' : 'ファン視点（インフルエンサーを表示）',
+      'talk.id': talk.id,
+      'talk.purchased_slot_id': talk.purchased_slot_id,
+      'talk.influencer_id (ホストID)': talk.influencer_id,
+      'talk.influencer.id (表示対象のID)': talk.influencer.id,
+      'talk.influencer.name (表示名)': talk.influencer.name,
+      'talk.influencer.avatar_url (表示画像)': talk.influencer.avatar_url,
+      'talk.title': talk.title,
+      'talk.detail_image_url': talk.detail_image_url,
+      'talk.start_time': talk.start_time,
+      'talk.status': talk.status,
+      '現在のユーザーID': supabaseUser?.id,
+      '現在のユーザー名': supabaseUser?.display_name,
+    });
+
     // 初期フォロー状態を確認（インフルエンサー視点ではスキップ）
     if (supabaseUser && !initialIsFollowing && !showFanProfile) {
       checkFollowStatus(supabaseUser.id, talk.influencer.id).then(setIsFollowing);
     }
-  }, [supabaseUser, talk.influencer.id, initialIsFollowing, showFanProfile]);
+  }, [supabaseUser, talk.influencer.id, initialIsFollowing, showFanProfile, talk]);
 
   const handleFollowClick = async (e: React.MouseEvent) => {
     e.stopPropagation(); // カードのクリックイベントを防ぐ
@@ -107,6 +124,14 @@ export default function TalkCard({ talk, onSelect, isFollowing: initialIsFollowi
               src={talk.influencer.avatar_url}
               alt={talk.influencer.name}
               className="h-10 w-10 rounded-full border-2 border-white shadow-lg object-cover"
+              onError={(e) => {
+                console.error('❌ [TalkCard] 画像読み込みエラー:', {
+                  '画像URL': talk.influencer.avatar_url,
+                  '表示名': talk.influencer.name,
+                  'fallback画像を使用': '/images/default-avatar.png',
+                });
+                (e.target as HTMLImageElement).src = '/images/default-avatar.png';
+              }}
             />
             <div className="flex flex-col">
               {showFanProfile && (
@@ -140,6 +165,12 @@ export default function TalkCard({ talk, onSelect, isFollowing: initialIsFollowi
           <p className="text-sm leading-relaxed text-white drop-shadow-md opacity-95 line-clamp-2 font-semibold">
             {talk.title}
           </p>
+          {/* デバッグ用: 背景画像URLを表示（開発時のみ） */}
+          {process.env.NODE_ENV === 'development' && (
+            <p className="text-xs text-white/50 mt-1 truncate" title={talk.detail_image_url || talk.influencer.avatar_url}>
+              {talk.detail_image_url || talk.influencer.avatar_url}
+            </p>
+          )}
         </div>
       </div>
 
