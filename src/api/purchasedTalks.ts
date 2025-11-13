@@ -130,7 +130,12 @@ export const getInfluencerHostedTalks = async (userId: string) => {
           fan_user_id,
           purchased_at,
           call_status,
-          winning_bid_amount
+          winning_bid_amount,
+          users!purchased_slots_fan_user_id_fkey (
+            id,
+            display_name,
+            profile_image_url
+          )
         )
       `)
       .eq('user_id', userId)
@@ -175,34 +180,23 @@ export const getInfluencerHostedTalks = async (userId: string) => {
       return [];
     }
 
-    // fan_user_idのリストを取得して、usersテーブルから一括取得
-    const fanUserIds = validCallSlots
-      .map((cs: any) => {
-        // call_slotsのfan_user_idが設定されている場合はそれを使用、なければpurchased_slotsから取得
-        return cs.fan_user_id || cs.purchased_slots?.[0]?.fan_user_id;
-      })
-      .filter((id: any) => id !== null && id !== undefined && id !== '');
-
-    // 重複を除去
-    const uniqueFanUserIds = [...new Set(fanUserIds)];
-
-    let fanUsersMap: { [key: string]: any } = {};
-    if (uniqueFanUserIds.length > 0) {
-      const { data: fanUsers, error: fanError } = await supabase
-        .from('users')
-        .select('id, display_name, profile_image_url')
-        .in('id', uniqueFanUserIds);
-
-      if (fanError) {
-        console.error('❌ Fan users取得エラー:', fanError);
-      } else if (fanUsers && fanUsers.length > 0) {
-        // マップを作成して高速検索可能にする（IDを文字列に変換してキーとして使用）
-        fanUsersMap = fanUsers.reduce((acc: any, user: any) => {
-          acc[String(user.id)] = user;
-          return acc;
-        }, {});
+    // purchased_slotsのリレーション経由でfan情報を取得（RLSポリシーを回避）
+    const fanUsersMap: { [key: string]: any } = {};
+    
+    validCallSlots.forEach((cs: any) => {
+      const purchasedSlot = cs.purchased_slots?.[0];
+      // purchased_slotsのリレーション経由でusersテーブルから取得
+      if (purchasedSlot?.users) {
+        const fan = Array.isArray(purchasedSlot.users) ? purchasedSlot.users[0] : purchasedSlot.users;
+        if (fan) {
+          fanUsersMap[String(fan.id)] = {
+            id: fan.id,
+            display_name: fan.display_name,
+            profile_image_url: fan.profile_image_url
+          };
+        }
       }
-    }
+    });
 
     // TalkSession形式に変換（call_slotsから直接fan情報を取得）
     const talkSessions: TalkSession[] = validCallSlots.map((callSlot: any) => {
