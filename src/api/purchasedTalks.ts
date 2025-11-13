@@ -183,29 +183,52 @@ export const getInfluencerHostedTalks = async (userId: string) => {
       })
       .filter((id: any) => id !== null && id !== undefined && id !== '');
 
-    console.log('🔍 fan_user_id一覧:', fanUserIds);
+    // 重複を除去
+    const uniqueFanUserIds = [...new Set(fanUserIds)];
+
+    console.log('🔍 fan_user_id一覧（重複除去前）:', fanUserIds.length);
+    console.log('🔍 fan_user_id一覧（重複除去後）:', uniqueFanUserIds);
 
     let fanUsersMap: { [key: string]: any } = {};
-    if (fanUserIds.length > 0) {
+    if (uniqueFanUserIds.length > 0) {
+      console.log('🔍 usersテーブルから取得開始。IDs:', uniqueFanUserIds);
+      
       const { data: fanUsers, error: fanError } = await supabase
         .from('users')
         .select('id, display_name, profile_image_url')
-        .in('id', fanUserIds);
+        .in('id', uniqueFanUserIds);
 
       if (fanError) {
         console.error('❌ Fan users取得エラー:', fanError);
-      } else if (fanUsers && fanUsers.length > 0) {
-        console.log('✅ 取得したfan users:', fanUsers);
-        // マップを作成して高速検索可能にする（IDを文字列に変換してキーとして使用）
-        fanUsersMap = fanUsers.reduce((acc: any, user: any) => {
-          acc[String(user.id)] = user;
-          return acc;
-        }, {});
+        console.error('❌ エラー詳細:', {
+          code: fanError.code,
+          message: fanError.message,
+          details: fanError.details,
+          hint: fanError.hint
+        });
       } else {
-        console.warn('⚠️ fanUsersが空です。fanUserIds:', fanUserIds);
+        console.log('✅ usersテーブルからのレスポンス:', fanUsers);
+        console.log('✅ 取得したfan users数:', fanUsers?.length || 0);
+        
+        if (fanUsers && fanUsers.length > 0) {
+          // マップを作成して高速検索可能にする（IDを文字列に変換してキーとして使用）
+          fanUsersMap = fanUsers.reduce((acc: any, user: any) => {
+            acc[String(user.id)] = user;
+            return acc;
+          }, {});
+          console.log('✅ fanUsersMap作成完了。キー数:', Object.keys(fanUsersMap).length);
+          console.log('✅ fanUsersMap:', fanUsersMap);
+        } else {
+          console.warn('⚠️ fanUsersが空です。fanUserIds:', uniqueFanUserIds);
+          console.warn('⚠️ クエリ条件:', { table: 'users', ids: uniqueFanUserIds });
+        }
       }
     } else {
-      console.warn('⚠️ fanUserIdsが空です。callSlots:', callSlots.map((cs: any) => cs.fan_user_id));
+      console.warn('⚠️ fanUserIdsが空です。callSlots:', callSlots.map((cs: any) => ({
+        id: cs.id,
+        fan_user_id: cs.fan_user_id,
+        purchased_slots_fan_user_id: cs.purchased_slots?.[0]?.fan_user_id
+      })));
     }
 
     // TalkSession形式に変換（call_slotsから直接fan情報を取得）
