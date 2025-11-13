@@ -134,7 +134,6 @@ export const getInfluencerHostedTalks = async (userId: string) => {
         )
       `)
       .eq('user_id', userId)
-      .or('fan_user_id.not.is.null,purchased_slots.id.not.is.null')
       .order('scheduled_start_time', { ascending: true });
 
     if (error) {
