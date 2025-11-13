@@ -130,15 +130,11 @@ export const getInfluencerHostedTalks = async (userId: string) => {
           fan_user_id,
           purchased_at,
           call_status,
-          winning_bid_amount,
-          users!purchased_slots_fan_user_id_fkey (
-            id,
-            display_name,
-            profile_image_url
-          )
+          winning_bid_amount
         )
       `)
       .eq('user_id', userId)
+      .not('fan_user_id', 'is', null)
       .order('scheduled_start_time', { ascending: true });
 
     if (error) {
@@ -148,76 +144,43 @@ export const getInfluencerHostedTalks = async (userId: string) => {
 
     // データが空の場合は空の配列を返す
     if (!callSlots || callSlots.length === 0) {
-      console.log('⚠️ call_slotsが空です');
       return [];
     }
 
-    console.log('🔍 取得したcall_slots数:', callSlots.length);
+    // call_slotsからfan_user_idのリストを取得
+    const fanUserIds = callSlots
+      .map((cs: any) => cs.fan_user_id)
+      .filter((id: any) => id !== null && id !== undefined && id !== '');
 
-    // purchased_slots!innerを使用しているので、purchased_slotsが存在するcall_slotsのみが取得される
-    // 念のため、fan_user_idまたはpurchased_slotsが存在するcall_slotsを確認
-    const validCallSlots = callSlots.filter((cs: any) => {
-      const hasFanUserId = cs.fan_user_id !== null && cs.fan_user_id !== undefined;
-      const hasPurchasedSlot = cs.purchased_slots && cs.purchased_slots.length > 0;
-      const isValid = hasFanUserId || hasPurchasedSlot;
-      
-      if (!isValid) {
-        console.warn('⚠️ 無効なcall_slot:', {
-          id: cs.id,
-          title: cs.title,
-          fan_user_id: cs.fan_user_id,
-          purchased_slots: cs.purchased_slots
-        });
+    // 重複を除去
+    const uniqueFanUserIds = [...new Set(fanUserIds)];
+
+    // usersテーブルからfan_user_idをキーにuser情報を取得
+    let fanUsersMap: { [key: string]: any } = {};
+    if (uniqueFanUserIds.length > 0) {
+      const { data: fanUsers, error: fanError } = await supabase
+        .from('users')
+        .select('id, display_name, profile_image_url')
+        .in('id', uniqueFanUserIds);
+
+      if (fanError) {
+        console.error('❌ Fan users取得エラー:', fanError);
+      } else if (fanUsers && fanUsers.length > 0) {
+        // マップを作成して高速検索可能にする
+        fanUsersMap = fanUsers.reduce((acc: any, user: any) => {
+          acc[String(user.id)] = user;
+          return acc;
+        }, {});
       }
-      
-      return isValid;
-    });
-
-    console.log('🔍 有効なcall_slots数:', validCallSlots.length, '/', callSlots.length);
-
-    if (validCallSlots.length === 0) {
-      console.warn('⚠️ 有効なcall_slotsがありません。全call_slots:', callSlots);
-      return [];
     }
-
-    // purchased_slotsのリレーション経由でfan情報を取得（RLSポリシーを回避）
-    const fanUsersMap: { [key: string]: any } = {};
-    
-    validCallSlots.forEach((cs: any) => {
-      const purchasedSlot = cs.purchased_slots?.[0];
-      // purchased_slotsのリレーション経由でusersテーブルから取得
-      if (purchasedSlot?.users) {
-        const fan = Array.isArray(purchasedSlot.users) ? purchasedSlot.users[0] : purchasedSlot.users;
-        if (fan) {
-          fanUsersMap[String(fan.id)] = {
-            id: fan.id,
-            display_name: fan.display_name,
-            profile_image_url: fan.profile_image_url
-          };
-        }
-      }
-    });
 
     // TalkSession形式に変換（call_slotsから直接fan情報を取得）
-    const talkSessions: TalkSession[] = validCallSlots.map((callSlot: any) => {
+    const talkSessions: TalkSession[] = callSlots.map((callSlot: any) => {
       const purchasedSlot = callSlot.purchased_slots?.[0]; // 1:1関係
       
-      // fan_user_idを取得（call_slotsのfan_user_idまたはpurchased_slotsのfan_user_idから）
-      const fanUserId = callSlot.fan_user_id || purchasedSlot?.fan_user_id;
-      const fanUserIdStr = fanUserId ? String(fanUserId) : null;
-      const fan = fanUserIdStr ? fanUsersMap[fanUserIdStr] : null;
-
-      // デバッグログ：fan情報が取得できているか確認
-      if (!fan && fanUserId) {
-        console.warn('⚠️ fan情報が取得できませんでした:', {
-          callSlotId: callSlot.id,
-          fanUserId: fanUserId,
-          fanUserIdStr: fanUserIdStr,
-          fanUserIdsInMap: Object.keys(fanUsersMap),
-          callSlotFanUserId: callSlot.fan_user_id,
-          purchasedSlotFanUserId: purchasedSlot?.fan_user_id
-        });
-      }
+      // call_slotsからfan_user_idを取得
+      const fanUserId = callSlot.fan_user_id;
+      const fan = fanUserId ? fanUsersMap[String(fanUserId)] : null;
 
       // 予定のTalkか過去のTalkかを判定
       const now = new Date();
