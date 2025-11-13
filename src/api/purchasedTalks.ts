@@ -214,22 +214,52 @@ export const getInfluencerHostedTalks = async (userId: string) => {
     // 重複を除去
     const uniqueFanUserIds = [...new Set(fanUserIds)];
 
+    console.log('🔍 [getInfluencerHostedTalks] ファン情報取得準備:', {
+      'call_slotsから取得したfan_user_idリスト': fanUserIds,
+      '重複除去後のfan_user_idリスト': uniqueFanUserIds,
+      'リストの長さ': uniqueFanUserIds.length,
+    });
+
     // usersテーブルからfan_user_idをキーにuser情報を取得
     let fanUsersMap: { [key: string]: any } = {};
     if (uniqueFanUserIds.length > 0) {
+      console.log('🔍 [getInfluencerHostedTalks] usersテーブルからファン情報を取得開始:', {
+        '検索するuser_idリスト': uniqueFanUserIds,
+      });
+
       const { data: fanUsers, error: fanError } = await supabase
         .from('users')
         .select('id, display_name, profile_image_url, bio')
         .in('id', uniqueFanUserIds);
 
       if (fanError) {
-        console.error('❌ Fan users取得エラー:', fanError);
-      } else if (fanUsers && fanUsers.length > 0) {
-        // マップを作成して高速検索可能にする
-        fanUsersMap = fanUsers.reduce((acc: any, user: any) => {
-          acc[String(user.id)] = user;
-          return acc;
-        }, {});
+        console.error('❌ [getInfluencerHostedTalks] Fan users取得エラー:', {
+          'エラー': fanError,
+          '検索したuser_idリスト': uniqueFanUserIds,
+        });
+      } else {
+        console.log('✅ [getInfluencerHostedTalks] usersテーブルから取得したファン情報:', {
+          '取得件数': fanUsers?.length || 0,
+          '取得したユーザー': fanUsers?.map((u: any) => ({ id: u.id, display_name: u.display_name })) || [],
+        });
+
+        if (fanUsers && fanUsers.length > 0) {
+          // マップを作成して高速検索可能にする
+          fanUsersMap = fanUsers.reduce((acc: any, user: any) => {
+            acc[String(user.id)] = user;
+            return acc;
+          }, {});
+
+          console.log('✅ [getInfluencerHostedTalks] fanUsersMap作成完了:', {
+            'マップのキー': Object.keys(fanUsersMap),
+            'マップの内容': Object.entries(fanUsersMap).map(([k, v]: [string, any]) => ({ key: k, id: v.id, display_name: v.display_name })),
+          });
+        } else {
+          console.warn('⚠️ [getInfluencerHostedTalks] usersテーブルからファン情報が取得できませんでした:', {
+            '検索したuser_idリスト': uniqueFanUserIds,
+            '取得結果': fanUsers,
+          });
+        }
       }
     }
 
@@ -271,9 +301,15 @@ export const getInfluencerHostedTalks = async (userId: string) => {
       console.log('  users.bio:', fan?.bio || '(未取得)');
       console.log('  fanUsersMapに存在:', fanUserId ? (fanUsersMap[String(fanUserId)] ? 'あり' : 'なし') : 'N/A');
       console.log('  === purchased_slots情報 ===');
+      console.log('  purchased_slot (raw):', purchasedSlot);
+      console.log('  call_slot.purchased_slots (raw):', callSlot.purchased_slots);
       console.log('  purchased_slot.id:', purchasedSlot?.id);
       console.log('  purchased_slot.call_status:', purchasedSlot?.call_status);
       console.log('  purchased_slot.winning_bid_amount:', purchasedSlot?.winning_bid_amount);
+      console.log('  === デバッグ情報 ===');
+      console.log('  fanUserId (call_slot.fan_user_id):', fanUserId);
+      console.log('  fanUsersMap[fanUserId]:', fanUsersMap[String(fanUserId)]);
+      console.log('  fanUsersMap全体のキー:', Object.keys(fanUsersMap));
 
       const talkSession = {
         id: callSlot.id,
