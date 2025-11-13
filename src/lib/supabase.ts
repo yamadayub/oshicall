@@ -9,6 +9,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// デフォルトアバター画像（データURIのSVGプレースホルダー）
+export const DEFAULT_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9IiNEMUQ1REIiLz4KPHBhdGggZD0iTTIwIDEyQzE3LjI0IDEyIDE1IDE0LjI0IDE1IDE3QzE1IDE5Ljc2IDE3LjI0IDIyIDIwIDIyQzIyLjc2IDIyIDI1IDE5Ljc2IDI1IDE3QzI1IDE0LjI0IDIyLjc2IDEyIDIwIDEyWk0yMCAyNEMxNi42NyAyNCAxNCAyNS4zNCAxNCAyN1YyOUgyNlYyN0MyNiAyNS4zNCAyMy4zMyAyNCAyMCAyNFoiIGZpbGw9IiM5Q0EzQUYiLz4KPC9zdmc+';
+
 // 型定義
 export interface User {
   id: string;

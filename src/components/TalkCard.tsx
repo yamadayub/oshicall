@@ -6,6 +6,7 @@ import CountdownTimer from './CountdownTimer';
 import { followInfluencer, unfollowInfluencer, checkFollowStatus } from '../api/follows';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { DEFAULT_AVATAR } from '../lib/supabase';
 
 interface TalkCardProps {
   talk: TalkSession;
@@ -121,16 +122,22 @@ export default function TalkCard({ talk, onSelect, isFollowing: initialIsFollowi
             className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
           >
             <img
-              src={talk.influencer.avatar_url}
+              src={talk.influencer.avatar_url || DEFAULT_AVATAR}
               alt={talk.influencer.name}
               className="h-10 w-10 rounded-full border-2 border-white shadow-lg object-cover"
               onError={(e) => {
+                const img = e.target as HTMLImageElement;
+                // 既にフォールバック画像を設定している場合は無限ループを防ぐ
+                if (img.src === DEFAULT_AVATAR || img.src.includes('data:image/svg+xml')) {
+                  return;
+                }
                 console.error('❌ [TalkCard] 画像読み込みエラー:', {
                   '画像URL': talk.influencer.avatar_url,
                   '表示名': talk.influencer.name,
-                  'fallback画像を使用': '/images/default-avatar.png',
+                  'fallback画像を使用': 'データURIプレースホルダー',
                 });
-                (e.target as HTMLImageElement).src = '/images/default-avatar.png';
+                // データURIのプレースホルダー画像を使用
+                img.src = DEFAULT_AVATAR;
               }}
             />
             <div className="flex flex-col">
