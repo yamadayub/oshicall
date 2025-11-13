@@ -234,8 +234,14 @@ export const getInfluencerHostedTalks = async (userId: string) => {
 
       if (fanError) {
         console.error('❌ [getInfluencerHostedTalks] Fan users取得エラー:', {
-          'エラー': fanError,
+          'エラーコード': fanError.code,
+          'エラーメッセージ': fanError.message,
+          'エラー詳細': fanError.details,
+          'エラーヒント': fanError.hint,
           '検索したuser_idリスト': uniqueFanUserIds,
+          '考えられる原因': fanError.code === 'PGRST301' || fanError.code === '42501' 
+            ? 'RLS（Row Level Security）ポリシーによりアクセスが拒否されています。sql/fixes/add_influencer_view_fan_from_call_slots.sqlを実行してください。'
+            : 'その他のエラー',
         });
       } else {
         console.log('✅ [getInfluencerHostedTalks] usersテーブルから取得したファン情報:', {
