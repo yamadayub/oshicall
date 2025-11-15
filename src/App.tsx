@@ -7,7 +7,6 @@ import LiveTalk from './pages/LiveTalk';
 import TalkDetail from './pages/TalkDetail';
 import BidHistory from './pages/BidHistory';
 import MyPage from './pages/MyPage';
-import Rankings from './pages/Rankings';
 import HowItWorks from './pages/HowItWorks';
 import InfluencerDashboard from './pages/InfluencerDashboard';
 import InfluencerPage from './pages/InfluencerPage';
@@ -43,7 +42,6 @@ function AppContent() {
         <Route path="/bid-history/:talkId" element={<BidHistory />} />
         <Route path="/call/:purchasedSlotId" element={<CallPage />} />
         <Route path="/mypage" element={<MyPage />} />
-        <Route path="/rankings" element={<Rankings />} />
         <Route path="/how-it-works" element={<HowItWorks />} />
         <Route path="/influencer-dashboard" element={<InfluencerDashboard />} />
       </Routes>

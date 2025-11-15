@@ -172,11 +172,21 @@ CREATE TABLE call_slots (
   buy_now_price INTEGER,
   thumbnail_url TEXT,
   is_female_only BOOLEAN DEFAULT FALSE,
-  status TEXT DEFAULT 'active',
+  end_time TIMESTAMPTZ NOT NULL, -- scheduled_start_time + duration_minutes（自動計算）
+  status call_slot_status DEFAULT 'planned', -- planned, live, completed
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
+
+**call_slot_status enum**:
+```sql
+CREATE TYPE call_slot_status AS ENUM ('planned', 'live', 'completed');
+```
+
+**自動処理**:
+- `end_time`: `scheduled_start_time` + `duration_minutes`で自動計算
+- `status`: 作成時は`planned`、purchased_slots作成で`live`、call完了で`completed`
 
 ### purchased_slots テーブル
 ```sql

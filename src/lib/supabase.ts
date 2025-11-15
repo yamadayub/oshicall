@@ -62,6 +62,8 @@ export interface CallSlot {
   thumbnail_url: string | null;
   created_at: string;
   updated_at: string;
+  end_time: string; // Talk終了時間（scheduled_start_time + duration_minutes）
+  status: 'planned' | 'live' | 'completed'; // Talkステータス
   auction_end_time?: string; // オークション終了時間
   auction_id?: string; // オークションID
 }

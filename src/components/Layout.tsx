@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Heart, User, Crown, Calendar, Video, LogOut, Sparkles } from 'lucide-react';
+import { Heart, User, Calendar, Video, LogOut, Sparkles } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import AuthModal from './AuthModal';
 
@@ -35,7 +35,6 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
   const navItems = [
     { id: 'home', label: 'ホーム', icon: Calendar },
     ...(user ? [{ id: 'talk', label: 'Talk', icon: Video }] : []),
-    { id: 'rankings', label: 'ランキング', icon: Crown },
     ...(user ? [{ id: 'mypage', label: 'マイページ', icon: User }] : []),
   ];
 

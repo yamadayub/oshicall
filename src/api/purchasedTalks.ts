@@ -183,6 +183,8 @@ export const getInfluencerHostedTalks = async (userId: string) => {
         is_published,
         user_id,
         fan_user_id,
+        end_time,
+        status,
         influencer:user_id (
           id,
           display_name,
@@ -417,23 +419,12 @@ export const getUpcomingHostedTalks = async (userId: string) => {
   const now = new Date();
 
   return allTalks.filter(talk => {
-    // Talk終了時間を計算（開始時間 + 時間）
-    const talkEndTime = new Date(talk.end_time);
-    
-    // オークション期間中のTalk枠は常に表示
-    const isActiveAuction = talk.status === 'active' || talk.status === 'upcoming';
-    if (isActiveAuction) {
-      return true;
-    }
-    
-    // 落札済みのTalk枠の場合：
-    // 1. Talkが未完了（call_status !== 'completed'）
-    // 2. Talk終了時間をまだ迎えていない（talkEndTime > now）
-    const isNotCompleted = talk.call_status !== 'completed';
-    const isNotEnded = talkEndTime > now;
-    
-    // 両方の条件を満たす場合のみ「ホストするTalk」タブに表示
-    return isNotCompleted && isNotEnded;
+    // call_slotsのstatusがplannedまたはlive、かつend_timeを迎えていない場合のみ表示
+    // status: planned（作成済み）、live（開始済み）、completed（完了済み）
+    const isActiveStatus = talk.status === 'planned' || talk.status === 'live';
+    const hasNotEnded = new Date(talk.end_time) > now;
+
+    return isActiveStatus && hasNotEnded;
   });
 };
 
@@ -442,21 +433,12 @@ export const getCompletedHostedTalks = async (userId: string) => {
   const now = new Date();
 
   return allTalks.filter(talk => {
-    // Talk終了時間を計算（開始時間 + 時間）
-    const talkEndTime = new Date(talk.end_time);
-    
-    // オークション期間中のTalk枠は「過去の実績」に表示しない
-    const isActiveAuction = talk.status === 'active' || talk.status === 'upcoming';
-    if (isActiveAuction) {
-      return false;
-    }
-    
     // 以下のいずれかの条件を満たす場合、「過去の実績」タブに表示：
-    // 1. Talkが完了したもの（call_status === 'completed'）
-    // 2. Talk終了時間を過ぎているもの（talkEndTime <= now）
-    const isCompleted = talk.call_status === 'completed';
-    const isEnded = talkEndTime <= now;
-    
-    return isCompleted || isEnded;
+    // 1. call_slotsのstatusがcompleted
+    // 2. call_slotsのstatusがplannedまたはliveだが、end_timeを過ぎている
+    const isCompleted = talk.status === 'completed';
+    const hasEnded = new Date(talk.end_time) <= now;
+
+    return isCompleted || hasEnded;
   });
 };

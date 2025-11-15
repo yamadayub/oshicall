@@ -87,7 +87,7 @@ export default function Talk() {
       label: isInfluencer ? 'ホストするTalk' : '落札したTalk',
       icon: isInfluencer ? Users : Trophy
     },
-    { id: 'history', label: '過去の実績', icon: History },
+    { id: 'history', label: isInfluencer ? '過去の実績' : '過去の実績', icon: History },
   ];
 
   return (
@@ -99,7 +99,7 @@ export default function Talk() {
         </h1>
         <p className="text-gray-600">
           {isInfluencer
-            ? '販売済みのTalk枠と過去の実績を確認できます'
+            ? '未完了のTalk枠と過去の実績を確認できます'
             : '落札したTalkと過去の実績を確認できます'}
         </p>
       </div>
@@ -135,7 +135,7 @@ export default function Talk() {
           {activeTab === 'upcoming' && (
             <div className="space-y-6">
               <h2 className="text-xl font-bold text-gray-800">
-                {isInfluencer ? '予定されているTalk' : '予定されているTalk'}
+                {isInfluencer ? '未完了のTalk' : '予定されているTalk'}
               </h2>
 
               {isLoading ? (
@@ -163,7 +163,7 @@ export default function Talk() {
                     <Trophy className="h-16 w-16 mx-auto text-gray-400 mb-4" />
                   )}
                   <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    {isInfluencer ? '販売済みのTalk枠がありません' : '落札したTalk枠がありません'}
+                    {isInfluencer ? '未完了のTalk枠がありません' : '落札したTalk枠がありません'}
                   </h3>
                   <p className="text-gray-500 mb-4">
                     {isInfluencer
