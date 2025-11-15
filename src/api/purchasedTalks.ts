@@ -377,7 +377,7 @@ export const getInfluencerHostedTalks = async (userId: string) => {
         description: callSlot.description || '',
         host_message: callSlot.description || `${fan?.display_name || '購入者'}さんとのTalk`,
         start_time: callSlot.scheduled_start_time || new Date().toISOString(),
-        end_time: callSlot.scheduled_start_time
+        end_time: callSlot.end_time || callSlot.scheduled_start_time
           ? new Date(new Date(callSlot.scheduled_start_time).getTime() + (callSlot.duration_minutes || 30) * 60000).toISOString()
           : new Date().toISOString(),
         auction_end_time: auction?.auction_end_time || auction?.end_time || callSlot.scheduled_start_time || new Date().toISOString(),
@@ -388,6 +388,7 @@ export const getInfluencerHostedTalks = async (userId: string) => {
         created_at: purchasedSlot?.purchased_at || new Date().toISOString(),
         detail_image_url: callSlot.thumbnail_url || host?.profile_image_url || '/images/talks/default.jpg',
         is_female_only: false,
+        auction_status: auction?.status, // オークションステータスを追加
       };
 
       // 詳細ログ: 最終的なTalkSessionオブジェクト
@@ -419,8 +420,13 @@ export const getUpcomingHostedTalks = async (userId: string) => {
   const now = new Date();
 
   return allTalks.filter(talk => {
-    // call_slotsのstatusがplannedまたはlive、かつend_timeを迎えていない場合のみ表示
-    // status: planned（作成済み）、live（開始済み）、completed（完了済み）
+    // オークション期間中のTalk枠は常に表示（auction_statusがactive/scheduled）
+    const isAuctionActive = talk.auction_status === 'active' || talk.auction_status === 'scheduled';
+    if (isAuctionActive) {
+      return true;
+    }
+
+    // 落札済みのTalk枠の場合：statusがplanned/liveで、end_timeを迎えていない
     const isActiveStatus = talk.status === 'planned' || talk.status === 'live';
     const hasNotEnded = new Date(talk.end_time) > now;
 

@@ -98,6 +98,7 @@ export interface TalkSession {
   winner_id?: string;
   status: 'upcoming' | 'active' | 'completed' | 'cancelled' | 'won';
   call_status?: 'pending' | 'ready' | 'in_progress' | 'completed' | 'cancelled' | 'no_show'; // purchased_slots.call_status
+  auction_status?: 'draft' | 'scheduled' | 'active' | 'ended' | 'cancelled'; // auctions.status
   created_at: string;
   detail_image_url: string;
   is_female_only: boolean;
