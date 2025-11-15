@@ -97,6 +97,7 @@ export interface TalkSession {
   buy_now_price?: number | null;
   winner_id?: string;
   status: 'upcoming' | 'active' | 'completed' | 'cancelled' | 'won';
+  call_status?: 'pending' | 'ready' | 'in_progress' | 'completed' | 'cancelled' | 'no_show'; // purchased_slots.call_status
   created_at: string;
   detail_image_url: string;
   is_female_only: boolean;

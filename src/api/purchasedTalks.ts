@@ -382,6 +382,7 @@ export const getInfluencerHostedTalks = async (userId: string) => {
         starting_price: purchasedSlot?.winning_bid_amount || auction?.current_highest_bid || callSlot.starting_price || 0,
         current_highest_bid: purchasedSlot?.winning_bid_amount || auction?.current_highest_bid || callSlot.starting_price || 0,
         status: isAuctionActive ? 'active' : (purchasedSlot ? (isUpcoming ? 'won' : 'completed') : 'upcoming'),
+        call_status: purchasedSlot?.call_status, // purchased_slots.call_statusを追加
         created_at: purchasedSlot?.purchased_at || new Date().toISOString(),
         detail_image_url: callSlot.thumbnail_url || host?.profile_image_url || '/images/talks/default.jpg',
         is_female_only: false,
@@ -416,15 +417,23 @@ export const getUpcomingHostedTalks = async (userId: string) => {
   const now = new Date();
 
   return allTalks.filter(talk => {
-    // 終了時刻を基準に判定（終了時刻が現在時刻より未来の場合は「ホストするTalk」タブに表示）
-    // オークション期間中（status === 'active'）または落札済みで未終了（status === 'won'）のトーク枠を表示
+    // Talk終了時間を計算（開始時間 + 時間）
     const talkEndTime = new Date(talk.end_time);
-    const isUpcoming = talkEndTime > now;
-    const isActiveAuction = talk.status === 'active' || talk.status === 'upcoming';
-    const isWonAndUpcoming = talk.status === 'won' && isUpcoming;
     
-    // オークション期間中または落札済みで未終了のトーク枠を表示
-    return isActiveAuction || isWonAndUpcoming;
+    // オークション期間中のTalk枠は常に表示
+    const isActiveAuction = talk.status === 'active' || talk.status === 'upcoming';
+    if (isActiveAuction) {
+      return true;
+    }
+    
+    // 落札済みのTalk枠の場合：
+    // 1. Talkが未完了（call_status !== 'completed'）
+    // 2. Talk終了時間をまだ迎えていない（talkEndTime > now）
+    const isNotCompleted = talk.call_status !== 'completed';
+    const isNotEnded = talkEndTime > now;
+    
+    // 両方の条件を満たす場合のみ「ホストするTalk」タブに表示
+    return isNotCompleted && isNotEnded;
   });
 };
 
@@ -433,8 +442,21 @@ export const getCompletedHostedTalks = async (userId: string) => {
   const now = new Date();
 
   return allTalks.filter(talk => {
-    // 終了時刻を基準に判定（終了時刻が現在時刻より過去の場合は「過去の実績」タブに表示）
+    // Talk終了時間を計算（開始時間 + 時間）
     const talkEndTime = new Date(talk.end_time);
-    return talkEndTime <= now || talk.status === 'completed';
+    
+    // オークション期間中のTalk枠は「過去の実績」に表示しない
+    const isActiveAuction = talk.status === 'active' || talk.status === 'upcoming';
+    if (isActiveAuction) {
+      return false;
+    }
+    
+    // 以下のいずれかの条件を満たす場合、「過去の実績」タブに表示：
+    // 1. Talkが完了したもの（call_status === 'completed'）
+    // 2. Talk終了時間を過ぎているもの（talkEndTime <= now）
+    const isCompleted = talk.call_status === 'completed';
+    const isEnded = talkEndTime <= now;
+    
+    return isCompleted || isEnded;
   });
 };
