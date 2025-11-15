@@ -1,38 +1,47 @@
 -- ============================================
--- インフルエンサーが自分のTalk枠に落札したfanの情報を閲覧できるRLSポリシーを追加
--- call_slots.fan_user_idを使用して直接usersテーブルから取得できるようにする
+-- RLSポリシーの無限再帰を修正
+-- SECURITY DEFINER関数内でSET LOCAL row_security = offを使用してRLSをバイパス
 -- ============================================
 
--- 既存のポリシーを削除（無限再帰を防ぐため）
+-- 既存のポリシーを削除（関数に依存しているため先に削除）
 DROP POLICY IF EXISTS "Influencers can view fans from their call slots" ON users;
+
+-- 既存の関数を削除
+DROP FUNCTION IF EXISTS get_current_user_id();
+DROP FUNCTION IF EXISTS is_current_user_influencer();
 
 -- セキュリティ定義関数を作成（RLSポリシー内でusersテーブルを参照する際の無限再帰を防ぐ）
 -- SECURITY DEFINER + SET LOCAL row_security = off により、RLSポリシーをバイパスしてusersテーブルにアクセス可能
 CREATE OR REPLACE FUNCTION get_current_user_id()
 RETURNS UUID AS $$
+DECLARE
+  v_user_id UUID;
 BEGIN
   -- RLSを一時的に無効化してusersテーブルにアクセス
   SET LOCAL row_security = off;
-  RETURN (SELECT id FROM users WHERE auth_user_id = auth.uid() LIMIT 1);
+  SELECT id INTO v_user_id FROM users WHERE auth_user_id = auth.uid() LIMIT 1;
+  RETURN v_user_id;
 END;
 $$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
 
 -- インフルエンサーかどうかを判定するセキュリティ定義関数
 CREATE OR REPLACE FUNCTION is_current_user_influencer()
 RETURNS BOOLEAN AS $$
+DECLARE
+  v_is_influencer BOOLEAN;
 BEGIN
   -- RLSを一時的に無効化してusersテーブルにアクセス
   SET LOCAL row_security = off;
-  RETURN EXISTS (
+  SELECT EXISTS (
     SELECT 1 FROM users 
     WHERE auth_user_id = auth.uid() 
       AND is_influencer = TRUE
-  );
+  ) INTO v_is_influencer;
+  RETURN v_is_influencer;
 END;
 $$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
 
--- インフルエンサーが自分のTalk枠に落札したfanのプロフィールを閲覧可能にする
--- call_slotsテーブルを経由して、自分のuser_idで作成されたcall_slotsのfan_user_idに一致するユーザーを閲覧可能
+-- ポリシーを再作成
 CREATE POLICY "Influencers can view fans from their call slots" 
   ON users FOR SELECT 
   USING (

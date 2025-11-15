@@ -146,8 +146,9 @@ export const getUpcomingPurchasedTalks = async (userId: string) => {
   const now = new Date();
   
   return allTalks.filter(talk => {
-    const talkDate = new Date(talk.start_time);
-    return talkDate > now && talk.status === 'won';
+    // 終了時刻を基準に判定（終了時刻が現在時刻より未来の場合は「予定」）
+    const talkEndTime = new Date(talk.end_time);
+    return talkEndTime > now && talk.status === 'won';
   });
 };
 
@@ -156,16 +157,19 @@ export const getCompletedPurchasedTalks = async (userId: string) => {
   const now = new Date();
 
   return allTalks.filter(talk => {
-    const talkDate = new Date(talk.start_time);
-    return talkDate <= now || talk.status === 'completed';
+    // 終了時刻を基準に判定（終了時刻が現在時刻より過去の場合は「過去の実績」）
+    const talkEndTime = new Date(talk.end_time);
+    return talkEndTime <= now || talk.status === 'completed';
   });
 };
 
-// インフルエンサー用：ホストするTalk（販売済みスロット）を取得
+// インフルエンサー用：ホストするTalk（販売済みスロット + オークション期間中のスロット）を取得
 export const getInfluencerHostedTalks = async (userId: string) => {
   try {
     // 新スキーマ: call_slotsからuser_id（ホスト）とfan_user_id（落札者）を取得
-    // user_id（インフルエンサー）でフィルタリングし、fan_user_idが存在する（落札済み）スロットを取得
+    // user_id（インフルエンサー）でフィルタリングし、以下を取得：
+    // 1. fan_user_idが存在する（落札済み）スロット
+    // 2. オークション期間中のスロット（fan_user_idがnullでも、オークションが存在する）
     const { data: callSlots, error } = await supabase
       .from('call_slots')
       .select(`
@@ -174,6 +178,7 @@ export const getInfluencerHostedTalks = async (userId: string) => {
         description,
         scheduled_start_time,
         duration_minutes,
+        starting_price,
         thumbnail_url,
         user_id,
         fan_user_id,
@@ -190,10 +195,16 @@ export const getInfluencerHostedTalks = async (userId: string) => {
           purchased_at,
           call_status,
           winning_bid_amount
+        ),
+        auctions (
+          id,
+          status,
+          end_time,
+          auction_end_time,
+          current_highest_bid
         )
       `)
       .eq('user_id', userId)
-      .not('fan_user_id', 'is', null)
       .order('scheduled_start_time', { ascending: true });
 
     if (error) {
@@ -271,8 +282,17 @@ export const getInfluencerHostedTalks = async (userId: string) => {
 
     // TalkSession形式に変換
     // インフルエンサー視点では、influencerオブジェクトに落札者（ファン）の情報を設定
-    const talkSessions: TalkSession[] = callSlots.map((callSlot: any) => {
+    const talkSessions: TalkSession[] = callSlots
+      .filter((callSlot: any) => {
+        // オークション期間中または落札済みのスロットのみをフィルタリング
+        const auction = Array.isArray(callSlot.auctions) ? callSlot.auctions[0] : callSlot.auctions;
+        const hasAuction = auction && (auction.status === 'active' || auction.status === 'scheduled');
+        const hasPurchasedSlot = callSlot.fan_user_id !== null && callSlot.fan_user_id !== undefined;
+        return hasAuction || hasPurchasedSlot;
+      })
+      .map((callSlot: any) => {
       const purchasedSlot = callSlot.purchased_slots?.[0]; // 1:1関係
+      const auction = Array.isArray(callSlot.auctions) ? callSlot.auctions[0] : callSlot.auctions;
       
       // call_slotsからuser_id（ホスト=自分）とfan_user_id（落札者）を取得
       const hostUserId = callSlot.user_id; // ホスト（インフルエンサー）のID
@@ -283,7 +303,11 @@ export const getInfluencerHostedTalks = async (userId: string) => {
       // 予定のTalkか過去のTalkかを判定
       const now = new Date();
       const talkDate = new Date(callSlot.scheduled_start_time);
-      const isUpcoming = talkDate > now && purchasedSlot?.call_status !== 'completed';
+      const talkEndTime = new Date(new Date(callSlot.scheduled_start_time).getTime() + (callSlot.duration_minutes || 30) * 60000);
+      
+      // オークション期間中かどうかを判定
+      const isAuctionActive = auction && (auction.status === 'active' || auction.status === 'scheduled');
+      const isUpcoming = (talkEndTime > now && purchasedSlot?.call_status !== 'completed') || isAuctionActive;
 
       // 詳細ログ: 各Talk枠について、call_slotsとusersテーブルの情報をまとめて出力
       console.log('📋 [getInfluencerHostedTalks] Talk枠情報:');
@@ -340,10 +364,10 @@ export const getInfluencerHostedTalks = async (userId: string) => {
         end_time: callSlot.scheduled_start_time
           ? new Date(new Date(callSlot.scheduled_start_time).getTime() + (callSlot.duration_minutes || 30) * 60000).toISOString()
           : new Date().toISOString(),
-        auction_end_time: callSlot.scheduled_start_time || new Date().toISOString(),
-        starting_price: purchasedSlot?.winning_bid_amount || 0,
-        current_highest_bid: purchasedSlot?.winning_bid_amount || 0,
-        status: isUpcoming ? 'won' : 'completed',
+        auction_end_time: auction?.auction_end_time || auction?.end_time || callSlot.scheduled_start_time || new Date().toISOString(),
+        starting_price: purchasedSlot?.winning_bid_amount || auction?.current_highest_bid || callSlot.starting_price || 0,
+        current_highest_bid: purchasedSlot?.winning_bid_amount || auction?.current_highest_bid || callSlot.starting_price || 0,
+        status: isAuctionActive ? 'active' : (purchasedSlot ? (isUpcoming ? 'won' : 'completed') : 'upcoming'),
         created_at: purchasedSlot?.purchased_at || new Date().toISOString(),
         detail_image_url: callSlot.thumbnail_url || host?.profile_image_url || '/images/talks/default.jpg',
         is_female_only: false,
@@ -378,8 +402,10 @@ export const getUpcomingHostedTalks = async (userId: string) => {
   const now = new Date();
 
   return allTalks.filter(talk => {
-    const talkDate = new Date(talk.start_time);
-    return talkDate > now && talk.status === 'won';
+    // 終了時刻を基準に判定（終了時刻が現在時刻より未来の場合は「ホストするTalk」タブに表示）
+    // オークション期間中（status === 'active'）または落札済みで未終了（status === 'won'）のトーク枠を表示
+    const talkEndTime = new Date(talk.end_time);
+    return talkEndTime > now && (talk.status === 'won' || talk.status === 'active' || talk.status === 'upcoming');
   });
 };
 
@@ -388,7 +414,8 @@ export const getCompletedHostedTalks = async (userId: string) => {
   const now = new Date();
 
   return allTalks.filter(talk => {
-    const talkDate = new Date(talk.start_time);
-    return talkDate <= now || talk.status === 'completed';
+    // 終了時刻を基準に判定（終了時刻が現在時刻より過去の場合は「過去の実績」タブに表示）
+    const talkEndTime = new Date(talk.end_time);
+    return talkEndTime <= now || talk.status === 'completed';
   });
 };
