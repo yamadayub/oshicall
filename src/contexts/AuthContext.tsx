@@ -112,41 +112,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // call_slotsテーブルから実際のユーザータイプを判定
       // インフルエンサーとしてcall_slotsを作成しているかチェック
-      const { data: influencerSlots } = await supabase
+      const { data: influencerSlots, error: influencerSlotsError } = await supabase
         .from('call_slots')
         .select('id')
         .eq('user_id', user.id)
         .limit(1);
       
+      if (influencerSlotsError) {
+        console.error('❌ call_slots取得エラー（インフルエンサー）:', influencerSlotsError);
+      }
+      
       if (influencerSlots && influencerSlots.length > 0) {
         setUserType('influencer');
         console.log('👑 call_slotsからインフルエンサーとして設定:', { userId: user.id });
-        return;
-      }
-      
-      // ファンとしてcall_slotsを予約しているかチェック
-      const { data: fanSlots } = await supabase
-        .from('call_slots')
-        .select('id')
-        .eq('fan_user_id', user.id)
-        .limit(1);
-      
-      if (fanSlots && fanSlots.length > 0) {
-        setUserType('fan');
-        console.log('👤 call_slotsからファンとして設定:', { userId: user.id });
-        return;
-      }
-      
-      // call_slotsから判定できない場合、usersテーブルのフラグを使用
-      if (user.is_influencer) {
-        setUserType('influencer');
-        console.log('👑 インフルエンサーとして設定 - is_influencer:', user.is_influencer);
-      } else if (user.is_fan) {
-        setUserType('fan');
-        console.log('👤 ファンとして設定 - is_fan:', user.is_fan);
       } else {
-        setUserType(null);
-        console.log('⚠️ ユーザータイプが未設定 - is_influencer:', user.is_influencer, 'is_fan:', user.is_fan);
+        // ファンとしてcall_slotsを予約しているかチェック
+        const { data: fanSlots, error: fanSlotsError } = await supabase
+          .from('call_slots')
+          .select('id')
+          .eq('fan_user_id', user.id)
+          .limit(1);
+        
+        if (fanSlotsError) {
+          console.error('❌ call_slots取得エラー（ファン）:', fanSlotsError);
+        }
+        
+        if (fanSlots && fanSlots.length > 0) {
+          setUserType('fan');
+          console.log('👤 call_slotsからファンとして設定:', { userId: user.id });
+        } else {
+          // call_slotsから判定できない場合、usersテーブルのフラグを使用
+          if (user.is_influencer) {
+            setUserType('influencer');
+            console.log('👑 インフルエンサーとして設定 - is_influencer:', user.is_influencer);
+          } else if (user.is_fan) {
+            setUserType('fan');
+            console.log('👤 ファンとして設定 - is_fan:', user.is_fan);
+          } else {
+            setUserType(null);
+            console.log('⚠️ ユーザータイプが未設定 - is_influencer:', user.is_influencer, 'is_fan:', user.is_fan);
+          }
+        }
       }
     } catch (error) {
       console.error('❌ ユーザー同期エラー:', error);

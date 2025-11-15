@@ -180,6 +180,7 @@ export const getInfluencerHostedTalks = async (userId: string) => {
         duration_minutes,
         starting_price,
         thumbnail_url,
+        is_published,
         user_id,
         fan_user_id,
         influencer:user_id (
@@ -214,11 +215,32 @@ export const getInfluencerHostedTalks = async (userId: string) => {
 
     // データが空の場合は空の配列を返す
     if (!callSlots || callSlots.length === 0) {
+      console.log('⚠️ [getInfluencerHostedTalks] call_slotsが空です');
       return [];
     }
 
-    // call_slotsからfan_user_idのリストを取得
-    const fanUserIds = callSlots
+    // フィルタリング: オークション期間中または落札済みのスロットのみを取得
+    const filteredCallSlots = callSlots.filter((callSlot: any) => {
+      const auction = Array.isArray(callSlot.auctions) ? callSlot.auctions[0] : callSlot.auctions;
+      // オークションが存在する場合（statusは問わない）
+      const hasAuction = auction !== null && auction !== undefined;
+      // 落札済みのスロット
+      const hasPurchasedSlot = callSlot.fan_user_id !== null && callSlot.fan_user_id !== undefined;
+      // 公開済みのスロット（オークションが開始される前でも表示）
+      const hasPublishedSlot = callSlot.is_published === true;
+      
+      // オークションが存在する、または落札済み、または公開済みのスロットを表示
+      return hasAuction || hasPurchasedSlot || hasPublishedSlot;
+    });
+
+    console.log(`📊 [getInfluencerHostedTalks] フィルタリング結果: ${filteredCallSlots.length}/${callSlots.length}件`);
+
+    if (filteredCallSlots.length === 0) {
+      return [];
+    }
+
+    // call_slotsからfan_user_idのリストを取得（フィルタリング後のスロットから）
+    const fanUserIds = filteredCallSlots
       .map((cs: any) => cs.fan_user_id)
       .filter((id: any) => id !== null && id !== undefined && id !== '');
 
@@ -282,15 +304,7 @@ export const getInfluencerHostedTalks = async (userId: string) => {
 
     // TalkSession形式に変換
     // インフルエンサー視点では、influencerオブジェクトに落札者（ファン）の情報を設定
-    const talkSessions: TalkSession[] = callSlots
-      .filter((callSlot: any) => {
-        // オークション期間中または落札済みのスロットのみをフィルタリング
-        const auction = Array.isArray(callSlot.auctions) ? callSlot.auctions[0] : callSlot.auctions;
-        const hasAuction = auction && (auction.status === 'active' || auction.status === 'scheduled');
-        const hasPurchasedSlot = callSlot.fan_user_id !== null && callSlot.fan_user_id !== undefined;
-        return hasAuction || hasPurchasedSlot;
-      })
-      .map((callSlot: any) => {
+    const talkSessions: TalkSession[] = filteredCallSlots.map((callSlot: any) => {
       const purchasedSlot = callSlot.purchased_slots?.[0]; // 1:1関係
       const auction = Array.isArray(callSlot.auctions) ? callSlot.auctions[0] : callSlot.auctions;
       
@@ -405,7 +419,12 @@ export const getUpcomingHostedTalks = async (userId: string) => {
     // 終了時刻を基準に判定（終了時刻が現在時刻より未来の場合は「ホストするTalk」タブに表示）
     // オークション期間中（status === 'active'）または落札済みで未終了（status === 'won'）のトーク枠を表示
     const talkEndTime = new Date(talk.end_time);
-    return talkEndTime > now && (talk.status === 'won' || talk.status === 'active' || talk.status === 'upcoming');
+    const isUpcoming = talkEndTime > now;
+    const isActiveAuction = talk.status === 'active' || talk.status === 'upcoming';
+    const isWonAndUpcoming = talk.status === 'won' && isUpcoming;
+    
+    // オークション期間中または落札済みで未終了のトーク枠を表示
+    return isActiveAuction || isWonAndUpcoming;
   });
 };
 
