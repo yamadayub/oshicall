@@ -33,20 +33,28 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
 
   // ロゴ画像の決定
   const getLogoPath = () => {
-    // 優先順位: SVG > PNG > JPG > JPEG > WEBP
-    const extensions = ['svg', 'png', 'jpg', 'jpeg', 'webp'];
-    for (const ext of extensions) {
+    // 実際のファイル名を直接指定（優先順位: original > 1200w > 2400w > 600w）
+    const logoFiles = [
+      'oshi-talk-logo-original.png',
+      'oshi-talk-logo-1200w.png',
+      'oshi-talk-logo-2400w.png',
+      'oshi-talk-logo-600w.png',
+      'oshi-talk-logo-1200w.webp'
+    ];
+
+    // 最初に見つかったファイルを使用
+    for (const fileName of logoFiles) {
       try {
-        // ロゴファイルが存在するかチェック
         const img = new Image();
-        img.src = `/images/logo/logo.${ext}`;
-        if (img.complete) return `/images/logo/logo.${ext}`;
+        img.src = `/images/logo/${fileName}`;
+        return `/images/logo/${fileName}`;
       } catch (e) {
         // ファイルが存在しない場合は次へ
       }
     }
-    // デフォルトはSVG
-    return '/images/logo/logo.svg';
+
+    // フォールバック
+    return '/images/logo/oshi-talk-logo-original.png';
   };
 
   // ログイン状態に応じてナビゲーション項目を動的に生成
