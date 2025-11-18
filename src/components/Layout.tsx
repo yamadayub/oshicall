@@ -76,9 +76,9 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
             >
               <div className="logo-container">
                 <img
-                  src="/images/logo/oshi-talk-logo-original.png"
+                  src="/images/logo/oshi-talk-logo-cut.png"
                   alt="推しトーク"
-                  className="h-12 w-auto max-w-[200px] object-contain"
+                  className="h-12 w-auto max-w-[240px] object-contain"
                   onError={(e) => {
                     console.log('❌ Logo image failed to load:', e.currentTarget.src);
                     console.log('Error details:', e);
