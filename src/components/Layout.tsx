@@ -19,17 +19,35 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
   useEffect(() => {
     // ウィンドウのスクロール位置をリセット
     window.scrollTo(0, 0);
-    
+
     // main要素のスクロール位置もリセット
     const mainElement = document.querySelector('main');
     if (mainElement) {
       mainElement.scrollTop = 0;
     }
-    
+
     // ルート要素のスクロール位置もリセット
     const rootElement = document.documentElement;
     rootElement.scrollTop = 0;
   }, [children]);
+
+  // ロゴ画像の決定
+  const getLogoPath = () => {
+    // 優先順位: SVG > PNG > JPG > JPEG > WEBP
+    const extensions = ['svg', 'png', 'jpg', 'jpeg', 'webp'];
+    for (const ext of extensions) {
+      try {
+        // ロゴファイルが存在するかチェック
+        const img = new Image();
+        img.src = `/images/logo/logo.${ext}`;
+        if (img.complete) return `/images/logo/logo.${ext}`;
+      } catch (e) {
+        // ファイルが存在しない場合は次へ
+      }
+    }
+    // デフォルトはSVG
+    return '/images/logo/logo.svg';
+  };
 
   // ログイン状態に応じてナビゲーション項目を動的に生成
   const navItems = [
