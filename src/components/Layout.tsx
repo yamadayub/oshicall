@@ -70,14 +70,36 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
       <header className="bg-gradient-to-r from-pink-50 via-purple-50 to-indigo-100 fixed top-0 left-0 right-0 z-50 h-12 border-b border-white/20 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full">
           <div className="flex justify-between items-center h-full">
-            <button 
+            <button
               onClick={() => onNavigate?.('home')}
               className="flex items-center space-x-2 hover:opacity-80 transition-opacity duration-200"
             >
-              <Heart className="h-8 w-8 text-pink-500 fill-current" />
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent">
-                OshiTalk
-              </h1>
+              <div className="logo-container">
+                <img
+                  src="/images/logo/oshi-talk-logo-original.png"
+                  alt="推しトーク"
+                  className="h-8 w-auto max-w-[120px] object-contain"
+                  onError={(e) => {
+                    console.log('❌ Logo image failed to load:', e.currentTarget.src);
+                    console.log('Error details:', e);
+                    // ロゴが見つからない場合はデフォルトのテキスト表示
+                    const container = e.currentTarget.parentElement;
+                    if (container) container.style.display = 'none';
+                    const fallback = container?.parentElement?.querySelector('.logo-fallback');
+                    if (fallback) (fallback as HTMLElement).style.display = 'flex';
+                  }}
+                  onLoad={(e) => {
+                    console.log('✅ Logo image loaded successfully:', e.currentTarget.src);
+                    console.log('Image dimensions:', e.currentTarget.naturalWidth, 'x', e.currentTarget.naturalHeight);
+                  }}
+                />
+              </div>
+              <div className="logo-fallback hidden items-center space-x-2">
+                <div className="w-8 h-8 bg-gradient-to-r from-pink-500 to-purple-600 rounded-lg flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">O</span>
+                </div>
+                <span className="text-xl font-bold text-gray-900">推しトーク</span>
+              </div>
             </button>
             
             <nav className="hidden md:flex space-x-8">
