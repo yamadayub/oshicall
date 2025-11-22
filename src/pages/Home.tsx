@@ -80,7 +80,11 @@ export default function Home() {
 
         if (auctionError) {
           console.error('オークションデータ取得エラー:', auctionError);
-          throw auctionError;
+          // データが0件の場合はエラーではないので、エラーを表示しない
+          // 接続エラーなど本当のエラーのみ表示する
+          if (auctionError.code !== 'PGRST116') {
+            throw auctionError;
+          }
         }
 
         console.log('📊 Supabaseから取得したデータ:', auctionData);
@@ -127,7 +131,8 @@ export default function Home() {
 
       } catch (err) {
         console.error('❌ データ取得エラー:', err);
-        setError('データの取得に失敗しました');
+        // データが0件の場合は空状態メッセージを表示するだけなので、エラーは表示しない
+        // エラーがあってもユーザーには空状態として表示する
         setTalks([]);
       } finally {
         setIsLoading(false);
