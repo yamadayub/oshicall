@@ -313,9 +313,311 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 - **Resend Dashboard**: https://resend.com/
 - **Cloudflare DNS**: https://dash.cloudflare.com/
 
+## 🔄 作業フロー・制御ルール
+
+### データベース変更時の必須フロー
+
+**重要: DBに変更を行う場合は必ず以下のフローに従う**
+
+```
+📖 docs/setup/DATABASE_MIGRATIONS.md を参照してマイグレーションファイルを作成
+```
+
+#### ステップ1: マイグレーションファイル作成
+
+```bash
+# 1. Staging環境にリンク
+SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" \
+  npx supabase link --project-ref wioealhsienyubwegvdu
+
+# 2. マイグレーションファイル作成
+npx supabase migration new <機能名>
+
+# 例: npx supabase migration new add_notifications_table
+# 生成されるファイル: supabase/migrations/20251122120000_add_notifications_table.sql
+```
+
+#### ステップ2: マイグレーションファイル編集
+
+```sql
+-- 例: 新しいテーブル追加
+CREATE TABLE IF NOT EXISTS notifications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  message TEXT NOT NULL,
+  read BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- RLSポリシー追加
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own notifications"
+  ON notifications FOR SELECT
+  USING (auth.uid() = user_id);
+```
+
+#### ステップ3: Staging環境に適用
+
+```bash
+# 適用前に確認
+SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" \
+  npx supabase migration list --linked
+
+# Staging環境に適用
+SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" \
+  npx supabase db push --linked
+
+# 動作確認（Supabase Dashboard or アプリで確認）
+```
+
+#### ステップ4: Gitにコミット
+
+```bash
+git add supabase/migrations/
+git commit -m "feat: Add notifications table"
+git push origin main
+```
+
+#### ステップ5: Production環境に適用
+
+```bash
+# Production環境にリンク
+SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" \
+  npx supabase link --project-ref atkhwwqunwmpzqkgavtx
+
+# マイグレーション確認
+SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" \
+  npx supabase migration list --linked
+
+# Production環境に適用
+SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" \
+  npx supabase db push --linked
+```
+
+**マイグレーション管理の原則:**
+```
+Staging環境で開発・テスト
+↓
+Gitにコミット（マイグレーションファイル）
+↓
+Production環境に適用
+```
+
+**詳細:** `docs/setup/DATABASE_MIGRATIONS.md`
+
+---
+
+### コード変更時のフロー
+
+#### フロントエンド（React）変更
+
+1. **コンポーネント追加・修正**
+   - `src/components/` または `src/pages/` に作成
+   - TypeScript型定義を必ず付ける
+   - propsは明確な型で定義
+
+2. **動作確認**
+   ```bash
+   npm run dev  # http://localhost:5173
+   ```
+
+3. **ビルド確認**
+   ```bash
+   npm run build
+   ```
+
+#### バックエンド（Express）変更
+
+1. **APIエンドポイント追加・修正**
+   - `backend/src/routes/` にルート追加
+   - `backend/src/services/` にビジネスロジック追加
+   - TypeScript型定義を必ず付ける
+
+2. **動作確認**
+   ```bash
+   npm run server:dev  # http://localhost:3000
+   ```
+
+3. **重要なファイル修正時の注意**
+   - `backend/src/server.ts` - メインサーバー（慎重に修正）
+   - `backend/src/services/paymentCapture.ts` - 決済判定ロジック（テスト必須）
+   - `backend/src/routes/dailyWebhook.ts` - Webhook（テスト必須）
+
+#### Supabase Edge Function変更
+
+1. **Edge Function修正**
+   - `supabase/functions/<function-name>/index.ts` を編集
+
+2. **デプロイ**
+   ```bash
+   SUPABASE_ACCESS_TOKEN="sbp_..." \
+     npx supabase functions deploy <function-name> \
+     --project-ref atkhwwqunwmpzqkgavtx
+   ```
+
+---
+
+### 新機能開発時のフロー
+
+1. **要件確認**
+   - `docs/functional/functions/` から関連ドキュメントを確認
+   - データ構造とAPIを理解
+
+2. **実装**
+   - DB変更が必要な場合 → マイグレーションファイル作成（上記フロー）
+   - フロントエンド実装
+   - バックエンドAPI実装
+   - Edge Function実装（必要な場合）
+
+3. **テスト**
+   - ローカル動作確認
+   - Staging環境で動作確認
+   - E2Eテスト実施（`docs/test/E2E_TEST_GUIDE.md`）
+
+4. **デプロイ**
+   - Staging → Production の順でデプロイ
+   - Production環境で動作確認
+
+5. **ドキュメント更新**
+   - 機能仕様ドキュメント更新
+   - README更新（必要な場合）
+   - `.claude/project-context.md` 更新（重要な変更の場合）
+
+---
+
+### 環境変数変更時のフロー
+
+#### Heroku環境変数
+
+```bash
+# Production
+heroku config:set VARIABLE_NAME=value --app oshicall-production
+
+# Staging
+heroku config:set VARIABLE_NAME=value --app oshicall-staging
+
+# アプリ再起動（環境変数変更後）
+heroku restart --app oshicall-production
+```
+
+#### Supabase Edge Functions環境変数
+
+```bash
+# Production
+SUPABASE_ACCESS_TOKEN="sbp_..." \
+  npx supabase secrets set VARIABLE_NAME=value \
+  --project-ref atkhwwqunwmpzqkgavtx
+
+# 確認
+SUPABASE_ACCESS_TOKEN="sbp_..." \
+  npx supabase secrets list \
+  --project-ref atkhwwqunwmpzqkgavtx
+
+# Edge Function再デプロイ（環境変数変更後）
+SUPABASE_ACCESS_TOKEN="sbp_..." \
+  npx supabase functions deploy <function-name> \
+  --project-ref atkhwwqunwmpzqkgavtx
+```
+
+**重要:** 環境変数変更後は必ずドキュメントも更新
+- `docs/deployment/PRODUCTION_SETUP.md`
+- `.claude/project-context.md`（重要な変数の場合）
+
+---
+
+### Stripe設定変更時のフロー
+
+#### Webhook URL変更
+
+1. **Stripe Dashboard**
+   - https://dashboard.stripe.com/ → Developers → Webhooks
+   - プラットフォームWebhook: `https://oshi-talk.com/api/stripe/webhook`
+   - ConnectアカウントWebhook: `https://oshi-talk.com/api/stripe/connect/webhook`
+
+2. **Webhook Secretを環境変数に設定**
+   ```bash
+   heroku config:set STRIPE_WEBHOOK_SECRET=whsec_... --app oshicall-production
+   heroku config:set STRIPE_CONNECT_WEBHOOK_SECRET=whsec_... --app oshicall-production
+   ```
+
+3. **ドキュメント更新**
+   - `docs/deployment/PRODUCTION_SETUP.md`
+
+---
+
+### Daily.co Webhook設定変更時のフロー
+
+1. **Daily.co Dashboard**
+   - https://dashboard.daily.co/ → Developers → Webhooks
+
+2. **既存Webhook削除（必要な場合）**
+   ```bash
+   curl -X DELETE https://api.daily.co/v1/webhooks/<webhook-uuid> \
+     -H "Authorization: Bearer ${DAILY_API_KEY}"
+   ```
+
+3. **新しいWebhook作成**
+   ```bash
+   curl -X POST https://api.daily.co/v1/webhooks \
+     -H "Authorization: Bearer ${DAILY_API_KEY}" \
+     -H "Content-Type: application/json" \
+     -d '{"url": "https://oshi-talk.com/api/daily/webhook"}'
+   ```
+
+4. **ドキュメント更新**
+   - `docs/deployment/PRODUCTION_SETUP.md`
+   - `docs/functional/ADVANCED_PAYMENT_FLOW.md`
+
+---
+
+### デプロイフロー
+
+#### Production デプロイ
+
+```bash
+# 1. ビルド確認
+npm run build
+
+# 2. Gitコミット
+git add .
+git commit -m "feat: <変更内容>"
+
+# 3. マイグレーション適用（DB変更がある場合）
+SUPABASE_ACCESS_TOKEN="sbp_..." npx supabase db push \
+  --project-ref atkhwwqunwmpzqkgavtx
+
+# 4. Herokuにデプロイ
+git push heroku main
+# または
+git push production main
+
+# 5. デプロイログ確認
+heroku logs --tail --app oshicall-production
+
+# 6. 動作確認
+# https://oshi-talk.com
+```
+
+#### Staging デプロイ
+
+```bash
+# 1. Stagingブランチにpush
+git push staging main
+
+# 2. デプロイログ確認
+heroku logs --tail --app oshicall-staging
+
+# 3. 動作確認
+# https://staging.oshi-talk.com
+```
+
+---
+
 ## 💡 作業時のヒント
 
 ### ドキュメントを必ず参照する
+- **DB変更時**: `docs/setup/DATABASE_MIGRATIONS.md` を必ず確認
 - 新機能実装前に関連ドキュメントを確認
 - 変更があればドキュメントも更新
 
@@ -328,14 +630,21 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 ### デプロイ前のチェック
 - [ ] ローカルでビルドが通る（`npm run build`）
 - [ ] 環境変数が正しく設定されている
-- [ ] マイグレーションが適用されている
+- [ ] **マイグレーションが適用されている（DB変更がある場合）**
 - [ ] ドキュメントが更新されている
+- [ ] Staging環境で動作確認済み
 
 ### コードレビュー時
 - [ ] 要件定義との整合性
-- [ ] データ構造の変更有無
+- [ ] **データ構造の変更有無（マイグレーションファイルの確認）**
 - [ ] セキュリティ対策の実装
 - [ ] エラーハンドリングの実装
+
+### DB変更時の注意
+- [ ] **必ずマイグレーションファイルを作成**（Dashboardで直接変更しない）
+- [ ] Staging → Production の順で適用
+- [ ] ロールバック可能な設計にする
+- [ ] 本番DBへの直接変更は厳禁
 
 ---
 
