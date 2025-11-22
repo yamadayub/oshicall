@@ -2,97 +2,142 @@
 
 ## 📋 概要
 
-推しトークのProduction環境を新規作成するための包括的なガイドです。Staging環境（`oshicall`）から独立したProduction環境を構築します。
+OshiTalkのProduction環境セットアップの完全ガイドです。Staging環境（`oshicall-staging`）から独立したProduction環境（`oshicall-production`）を構築します。
 
-## 🎯 ゴール
+## 🎯 完成した環境
 
-- **oshicall-prod** Herokuアプリの作成
-- Production用Supabaseプロジェクトの構築
-- Production用Stripeアカウント設定
-- Production用Daily.co設定
-- カスタムドメイン設定
-- セキュリティ強化設定
+### ドメイン構成
+- **Production:** https://oshi-talk.com
+- **Staging:** https://staging.oshi-talk.com
+
+### インフラ構成
+| サービス | Production | Staging |
+|---------|-----------|---------|
+| **Heroku App** | oshicall-production | oshicall-staging |
+| **Supabase Project** | oshicall-production (atkhwwqunwmpzqkgavtx) | oshicall-staging (wioealhsienyubwegvdu) |
+| **ドメイン** | oshi-talk.com | staging.oshi-talk.com |
+| **DNS管理** | Cloudflare | Cloudflare |
+| **SSL** | Cloudflare Full (strict) | Cloudflare Full (strict) |
 
 ## 📋 前提条件
 
 - Heroku CLIインストール済み
 - Supabase CLIインストール済み
-- Stripeアカウント（Production用）
-- Daily.coアカウント（Production用）
-- カスタムドメイン取得済み（オプション）
+- Stripe Liveアカウント
+- Daily.coアカウント
+- Cloudflareアカウント（DNS管理）
+- カスタムドメイン（oshi-talk.com）取得済み
 
 ---
 
 ## 🚀 ステップバイステップガイド
 
-### ステップ1: Heroku Productionアプリ作成
+### ステップ1: Supabase Productionプロジェクト作成
+
+```bash
+# 1. Supabase Dashboardでプロジェクト作成
+# プロジェクト名: oshicall-production
+# リージョン: Tokyo (ap-northeast-1)
+# データベースパスワード: 安全なパスワードを設定
+
+# 2. プロジェクト参照IDを確認
+# Project Settings > General > Reference ID
+# 例: atkhwwqunwmpzqkgavtx
+
+# 3. ローカルで接続
+supabase link --project-ref atkhwwqunwmpzqkgavtx
+
+# 4. プロジェクト参照IDを保存（後で使用）
+echo "atkhwwqunwmpzqkgavtx" > supabase/.temp/project-ref
+```
+
+### ステップ2: データベースマイグレーション適用
+
+**重要:** 初回セットアップ時は、Stagingから取得したスキーマを使用します。
+
+```bash
+# 初期スキーママイグレーションを適用
+SUPABASE_ACCESS_TOKEN="your_access_token" \
+  npx supabase db push \
+  --db-url "postgresql://postgres.atkhwwqunwmpzqkgavtx:$SUPABASE_DB_PASSWORD@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres"
+
+# マイグレーション履歴確認
+SUPABASE_ACCESS_TOKEN="your_access_token" \
+  npx supabase migration list \
+  --db-url "postgresql://postgres.atkhwwqunwmpzqkgavtx:$SUPABASE_DB_PASSWORD@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres"
+```
+
+**適用されるマイグレーション:**
+- `20251113000000_initial_schema.sql` - 初期スキーマ（11テーブル、6 ENUM型）
+
+詳細は [DATABASE_MIGRATIONS.md](../setup/DATABASE_MIGRATIONS.md) を参照してください。
+
+### ステップ3: Heroku Productionアプリ作成
 
 ```bash
 # Productionアプリ作成
-heroku create oshicall-prod --region us
+heroku create oshicall-production --region us
 
 # アプリ確認
-heroku apps:info --app oshicall-prod
+heroku apps:info --app oshicall-production
 
 # Git remote追加（stagingと区別）
-git remote add production https://git.heroku.com/oshicall-prod.git
-```
-
-### ステップ2: Supabase Productionプロジェクト作成
-
-```bash
-# 新しいSupabaseプロジェクト作成
-supabase projects create oshicall-production
-
-# プロジェクト一覧確認
-supabase projects list
-
-# ローカル設定（production環境用）
-cp supabase/config.example.toml supabase/config.production.toml
-# config.production.toml を編集して新しいプロジェクトの設定を入力
-```
-
-### ステップ3: データベースマイグレーション適用
-
-```bash
-# Productionプロジェクトに接続
-supabase link --project-ref YOUR_PRODUCTION_PROJECT_REF
-
-# マイグレーション適用
-supabase db push
-
-# Edge Functionsデプロイ
-supabase functions deploy
+git remote add production https://git.heroku.com/oshicall-production.git
 ```
 
 ### ステップ4: Production環境変数設定
 
 #### Heroku環境変数
+
+**実際の設定内容（Production - oshicall-production）:**
+
 ```bash
 # Supabase設定
-heroku config:set SUPABASE_URL=https://your-prod-project.supabase.co --app oshicall-prod
-heroku config:set SUPABASE_ANON_KEY=your_prod_anon_key --app oshicall-prod
-heroku config:set SUPABASE_SERVICE_ROLE_KEY=your_prod_service_role_key --app oshicall-prod
+heroku config:set SUPABASE_URL=https://atkhwwqunwmpzqkgavtx.supabase.co --app oshicall-production
+heroku config:set SUPABASE_ANON_KEY=<Supabase Project Settings > API > anon public> --app oshicall-production
+heroku config:set SUPABASE_SERVICE_ROLE_KEY=<Supabase Project Settings > API > service_role> --app oshicall-production
 
-# Stripe設定（Production）
-heroku config:set STRIPE_PUBLISHABLE_KEY=pk_live_... --app oshicall-prod
-heroku config:set STRIPE_SECRET_KEY=sk_live_... --app oshicall-prod
-heroku config:set STRIPE_WEBHOOK_SECRET=whsec_... --app oshicall-prod
+# Stripe設定（Live Keys）
+heroku config:set STRIPE_PUBLISHABLE_KEY=pk_live_... --app oshicall-production
+heroku config:set STRIPE_SECRET_KEY=sk_live_... --app oshicall-production
+heroku config:set STRIPE_WEBHOOK_SECRET=whsec_kPYFFL7KmE0u3hhVHkpyz0VidHWcddDr --app oshicall-production
+heroku config:set STRIPE_CONNECT_WEBHOOK_SECRET=whsec_jnK8EWONJkF2TaCvu4tqr4QlqP3Jp1ba --app oshicall-production
 
-# Daily.co設定（Production）
-heroku config:set DAILY_API_KEY=your_prod_daily_key --app oshicall-prod
-heroku config:set DAILY_DOMAIN=your_prod_domain.daily.co --app oshicall-prod
+# Daily.co設定
+heroku config:set DAILY_API_KEY=bbc2e4684848f2b4b0c5352fa96a3d9495277abf63be6112974ddc2fc1d38e4b --app oshicall-production
 
-# その他の設定
-heroku config:set NODE_ENV=production --app oshicall-prod
-heroku config:set VITE_ENVIRONMENT=production --app oshicall-prod
+# フロントエンドURL
+heroku config:set FRONTEND_URL=https://oshi-talk.com --app oshicall-production
+
+# Node環境
+heroku config:set NODE_ENV=production --app oshicall-production
 ```
 
-#### 環境変数ファイル作成
+**参考: Staging環境設定（oshicall-staging）:**
+
 ```bash
-# Production用の環境変数ファイル作成
-cp env.production.example .env.production
-# .env.production を編集して実際の値を設定
+# Supabase設定
+heroku config:set SUPABASE_URL=https://wioealhsienyubwegvdu.supabase.co --app oshicall-staging
+
+# Stripe設定（Test Keys）
+heroku config:set STRIPE_SECRET_KEY=sk_test_... --app oshicall-staging
+
+# フロントエンドURL
+heroku config:set FRONTEND_URL=https://staging.oshi-talk.com --app oshicall-staging
+```
+
+#### Supabase Edge Functions環境変数（Production）
+
+```bash
+# Resend（メール送信）
+SUPABASE_ACCESS_TOKEN="your_token" npx supabase secrets set \
+  RESEND_API_KEY=re_... \
+  FROM_EMAIL="OshiTalk <noreply@oshi-talk.com>" \
+  APP_URL=https://oshi-talk.com \
+  --project-ref atkhwwqunwmpzqkgavtx
+
+# 設定確認
+SUPABASE_ACCESS_TOKEN="your_token" npx supabase secrets list --project-ref atkhwwqunwmpzqkgavtx
 ```
 
 ### ステップ5: Stripe Production設定
@@ -100,15 +145,42 @@ cp env.production.example .env.production
 #### Stripe Connect設定
 1. [Stripe Dashboard](https://dashboard.stripe.com/) にアクセス
 2. **Settings > Connect > Settings** で以下を設定：
-   - Platform name: OshiTalk Production
-   - Website: https://oshicall.com
-   - Terms of service: 利用規約URL
-   - Privacy policy: プライバシーポリシーURL
+   - Platform name: OshiTalk
+   - Website: https://oshi-talk.com
+   - Terms of service: https://oshi-talk.com/terms
+   - Privacy policy: https://oshi-talk.com/privacy
 
-#### Webhook設定
+#### Webhook設定（2種類必要）
+
+**1. プラットフォームWebhook（お客様のアカウント）**
+
+エンドポイント: `https://oshi-talk.com/api/stripe/webhook`
+
+イベント:
+- `payment_intent.succeeded` - 決済成功
+- `payment_intent.payment_failed` - 決済失敗
+- `charge.refunded` - 返金完了
+
 ```bash
-# Webhookエンドポイント作成
-stripe listen --forward-to https://oshicall-prod.herokuapp.com/api/webhooks/stripe
+# Stripe Dashboardで設定
+# Webhook Secret: whsec_kPYFFL7KmE0u3hhVHkpyz0VidHWcddDr
+```
+
+**2. Connectアカウント Webhook**
+
+エンドポイント: `https://oshi-talk.com/api/stripe/connect/webhook`
+
+イベント:
+- `account.updated` - Connectアカウント更新
+- `account.application.authorized` - 認証完了
+- `account.application.deauthorized` - 認証解除
+- `payout.created` - 出金作成
+- `payout.paid` - 出金完了
+- `payout.failed` - 出金失敗
+
+```bash
+# Stripe Dashboardで設定
+# Webhook Secret: whsec_jnK8EWONJkF2TaCvu4tqr4QlqP3Jp1ba
 ```
 
 ### ステップ6: Daily.co Production設定
@@ -141,35 +213,94 @@ curl -X GET https://api.daily.co/v1/webhooks \
 
 **詳細:** [高度な決済フロー](../functional/ADVANCED_PAYMENT_FLOW.md)を参照してください。
 
-### ステップ7: デプロイ実行
+### ステップ7: Resend（メール送信）設定
+
+#### ドメイン認証設定
+
+1. [Resend Dashboard](https://resend.com/domains) でドメイン追加: `oshi-talk.com`
+
+2. **Cloudflare DNSにレコード追加:**
+
+| Type | Name | Value |
+|------|------|-------|
+| TXT | @ | `v=spf1 include:_spf.google.com include:_spf.resend.com ~all` |
+| TXT | resend._domainkey | （Resendが提供するDKIM値） |
+| TXT | _dmarc | `v=DMARC1; p=none` |
+
+3. **ドメイン検証:**
+```bash
+# Resend Dashboardで検証ボタンをクリック
+# Status: Verified になることを確認
+```
+
+#### サブドメイン自動継承
+
+`staging.oshi-talk.com`は親ドメイン`oshi-talk.com`の設定を自動的に継承します。追加設定は不要です。
+
+### ステップ8: DNS設定（Cloudflare）
+
+#### ドメイン切り替え前の状態
+- `oshi-talk.com` → Staging環境
+- `staging.oshi-talk.com` → 未設定
+
+#### 切り替え後の状態
+- `oshi-talk.com` → **Production環境**
+- `staging.oshi-talk.com` → **Staging環境**
+
+#### Cloudflare DNS設定
+
+**1. Herokuドメインを追加:**
+```bash
+# Production
+heroku domains:add oshi-talk.com --app oshicall-production
+heroku domains:add www.oshi-talk.com --app oshicall-production
+
+# Staging
+heroku domains:add staging.oshi-talk.com --app oshicall-staging
+
+# Heroku DNSターゲット確認
+heroku domains --app oshicall-production
+heroku domains --app oshicall-staging
+```
+
+**2. Cloudflare DNSレコード設定:**
+
+| Type | Name | Target | Proxy |
+|------|------|--------|-------|
+| CNAME | @ | evolutionary-larkspur-emz3tr8hhqd2vkrqwfd3a460.herokudns.com | ✅ Proxied |
+| CNAME | www | endothelial-panther-loylkoz1latbcxsh01s3da0k.herokudns.com | ✅ Proxied |
+| CNAME | staging | fundamental-ridge-569s1489idtqpjl3ffj170tj.herokudns.com | ✅ Proxied |
+
+**3. SSL/TLS設定:**
+```bash
+# Cloudflare: SSL/TLS > Overview
+# Encryption mode: Full (strict)
+
+# Heroku: SSL証明書を有効化
+heroku certs:auto:enable --app oshicall-production
+heroku certs:auto:enable --app oshicall-staging
+```
+
+**注意:** Heroku ACMがSSL証明書を発行するまで、一時的にCloudflareのProxyを無効化（DNS only）する必要があります。証明書発行後、Proxyを再度有効化してください。
+
+### ステップ10: デプロイ実行
 
 ```bash
-# Productionブランチ作成（オプション）
-git checkout -b production
+# Productionにデプロイ
 git push production main
 
-# 初回デプロイ
-heroku run bash --app oshicall-prod
-# 内部で: npm run heroku-postbuild が自動実行される
+# デプロイログ確認
+heroku logs --tail --app oshicall-production
+
+# アプリ起動確認
+heroku ps --app oshicall-production
 ```
 
-### ステップ8: DNS設定（カスタムドメイン使用時）
-
-```bash
-# カスタムドメイン設定
-heroku domains:add www.oshicall.com --app oshicall-prod
-heroku domains:add oshicall.com --app oshicall-prod
-
-# DNSレコード確認
-heroku domains --app oshicall-prod
-```
-
-### ステップ9: SSL証明書設定
-
-```bash
-# SSL証明書自動設定（HerokuのAutomated Certificate Management）
-heroku certs:auto:enable --app oshicall-prod
-```
+**ビルドプロセス:**
+1. Heroku buildpackがNode.jsを検出
+2. `npm install`でパッケージインストール
+3. `npm run heroku-postbuild`でフロントエンドビルド
+4. バックエンドサーバーが`backend/src/server.ts`から起動
 
 ---
 
@@ -209,21 +340,29 @@ heroku addons:create scheduler:standard --app oshicall-prod
 ### デプロイスモークテスト
 ```bash
 # ヘルスチェック
-curl https://oshicall-prod.herokuapp.com/health
-
-# アプリ起動確認
-curl https://oshicall-prod.herokuapp.com/
+curl https://oshi-talk.com/health
+# 期待: {"status":"ok","timestamp":"..."}
 
 # APIテスト
-curl https://oshicall-prod.herokuapp.com/api/status
+curl https://oshi-talk.com/api/status
+# 期待: 200 OK
+
+# フロントエンド確認
+curl -I https://oshi-talk.com/
+# 期待: 200 OK + HTML
 ```
 
-### 機能テスト
+### 機能テスト（E2Eテスト推奨）
 1. ✅ ユーザー登録/ログイン
 2. ✅ Talk枠一覧表示
-3. ✅ オークション入札
-4. ✅ 決済処理
-5. ✅ ビデオ通話
+3. ✅ カード登録
+4. ✅ オークション入札
+5. ✅ オークション終了・落札
+6. ✅ ビデオ通話開始
+7. ✅ **Daily.co Webhook受信確認**
+8. ✅ **決済判定・確定（Talk完了後）**
+
+**重要:** ステップ7-8は高度な決済フローの検証です。詳細は [ADVANCED_PAYMENT_FLOW.md](../functional/ADVANCED_PAYMENT_FLOW.md) を参照してください。
 
 ---
 
@@ -304,24 +443,60 @@ heroku config:set VARIABLE_NAME=value --app oshicall-prod
 ## 🎯 リリースチェックリスト
 
 ### Pre-Launch
-- [ ] Productionアプリ作成完了
-- [ ] Supabase Production設定完了
-- [ ] Stripe Production設定完了
-- [ ] Daily.co Production設定完了
-- [ ] 環境変数設定完了
-- [ ] SSL証明書設定完了
+- [x] Supabase Productionプロジェクト作成（atkhwwqunwmpzqkgavtx）
+- [x] データベースマイグレーション適用
+- [x] Heroku Productionアプリ作成（oshicall-production）
+- [x] Heroku環境変数設定完了
+- [x] Supabase Edge Functions環境変数設定完了
+- [x] Stripe Connect設定完了
+- [x] Stripe Webhook設定完了（プラットフォーム + Connect）
+- [x] Daily.co Webhook設定完了（UUID: e2f06847-84b4-4a06-b859-9b0993b321da）
+- [x] Resendドメイン認証完了（oshi-talk.com）
+
+### DNS & SSL
+- [x] Cloudflare DNS設定完了
+  - [x] oshi-talk.com → Production
+  - [x] www.oshi-talk.com → Production
+  - [x] staging.oshi-talk.com → Staging
+- [x] Heroku ACM有効化完了
+- [x] Cloudflare SSL/TLS設定（Full strict）
 
 ### Launch
-- [ ] DNS設定完了
-- [ ] 初回デプロイス成功
-- [ ] スモークテスト通過
-- [ ] 機能テスト通過
+- [x] 初回デプロイ成功
+- [x] スモークテスト通過
+- [ ] E2E機能テスト通過（特に高度な決済フロー）
+- [ ] 本番データ投入
 
 ### Post-Launch
-- [ ] ログ監視設定完了
-- [ ] バックアップ設定完了
-- [ ] パフォーマンス監視設定完了
-- [ ] セキュリティ監査完了
+- [ ] ログ監視設定
+- [ ] エラー通知設定
+- [ ] パフォーマンス監視設定
+- [ ] バックアップ設定
+- [ ] セキュリティ監査
+
+---
+
+## 📊 現在の環境構成サマリー
+
+### Production環境（oshi-talk.com）
+```
+Heroku App: oshicall-production
+Supabase: atkhwwqunwmpzqkgavtx (Tokyo)
+Stripe: Live mode
+Daily.co: Webhook Active (e2f06847-84b4-4a06-b859-9b0993b321da)
+Resend: oshi-talk.com (Verified)
+SSL: Cloudflare Full (strict) + Heroku ACM
+```
+
+### Staging環境（staging.oshi-talk.com）
+```
+Heroku App: oshicall-staging
+Supabase: wioealhsienyubwegvdu (Tokyo)
+Stripe: Test mode
+Daily.co: No webhook (optional)
+Resend: 親ドメインoshi-talk.comを継承
+SSL: Cloudflare Full (strict) + Heroku ACM
+```
 
 ---
 
@@ -333,9 +508,12 @@ heroku config:set VARIABLE_NAME=value --app oshicall-prod
 2. **Supabaseサポート**: https://supabase.com/support
 3. **Stripeサポート**: https://stripe.com/docs/support
 4. **Daily.coサポート**: https://docs.daily.co/
+5. **Cloudflareサポート**: https://support.cloudflare.com/
+6. **Resendサポート**: https://resend.com/docs
 
 ---
 
 ## 📝 更新履歴
 
-- **2025-01-XX**: Production環境セットアップガイド作成
+- **2025-11-22**: Production環境セットアップ完了、高度な決済フロー実装
+- **2025-01-15**: 初版作成

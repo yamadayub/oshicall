@@ -5,14 +5,41 @@ Stripe APIを使用した安全な決済処理。与信確保（Authorization）
 
 ## 決済フロー概要
 
+### シンプルな決済フロー（従来）
 ```
 入札時: Authorization（与信確保）
   ↓
 オークション終了
   ↓
-落札者: Capture（決済確定）
+落札者: 即座にCapture（決済確定）
 落札できなかった人: Cancel（与信解放）
 ```
+
+### 高度な決済フロー（**現在の実装** - Webhook活用）
+```
+入札時: Authorization（与信確保）
+  ↓
+オークション終了
+  ↓
+purchased_slots作成（status='pending'、決済は保留）
+  ↓
+Talk実施（ビデオ通話）
+  ↓
+Daily.co Webhook受信（イベントログ記録）
+  ↓
+Talk完了判定（インフルエンサー参加・規定時間完了・途中退出なし）
+  ↓
+┌─────────┴─────────┐
+│                   │
+条件を満たす      条件を満たさない
+│                   │
+Capture            Cancel
+（決済確定）        （与信解放）
+│                   │
+status='completed'  status='cancelled'
+```
+
+**詳細:** [高度な決済フロー（ADVANCED_PAYMENT_FLOW.md）](../ADVANCED_PAYMENT_FLOW.md)を参照してください。
 
 ## 機能詳細
 
@@ -223,45 +250,198 @@ const paymentIntent = await stripe.paymentIntents.cancel(
 );
 ```
 
-### 6. オークション終了時の決済処理
-**実装ファイル**: `supabase/functions/end-auction/index.ts`
+### 6. オークション終了時の決済処理（現在の実装）
+**実装ファイル**: `backend/src/server.ts` (`POST /api/auctions/finalize-ended`)
 
-**トリガー**: Supabase Cron Job（1分ごと）
+**トリガー**: 外部Cronサービス（1分ごと）
+
+**重要な変更:** オークション終了時には**決済を確定せず**、Talk完了後にDaily.co Webhookで判定します。
 
 **処理フロー**:
 ```typescript
 // 1. 終了したオークションを取得
-const endedAuctions = await supabase
-  .from('auctions')
+const { data: endedAuctions } = await supabase
+  .from('active_auctions_view')
   .select('*')
   .eq('status', 'active')
-  .lt('end_time', new Date().toISOString());
+  .lte('end_time', now);
 
 for (const auction of endedAuctions) {
   // 2. 最高入札を取得
-  const winningBid = await getWinningBid(auction.id);
+  const { data: highestBid } = await supabase
+    .from('bids')
+    .select('*')
+    .eq('auction_id', auction.auction_id)
+    .order('bid_amount', { ascending: false })
+    .limit(1)
+    .single();
 
-  if (winningBid) {
-    // 3. 落札者の決済確定
-    await capturePayment(winningBid.stripe_payment_intent_id);
+  if (highestBid) {
+    // 3. プラットフォーム手数料計算（20%）
+    const platformFee = Math.round(highestBid.bid_amount * 0.2);
+    const influencerPayout = highestBid.bid_amount - platformFee;
 
-    // 4. purchased_slot作成
-    await createPurchasedSlot(auction, winningBid);
+    // 4. purchased_slots作成（決済は保留！）
+    await supabase.from('purchased_slots').insert({
+      call_slot_id: auction.call_slot_id,
+      fan_user_id: highestBid.user_id,
+      influencer_user_id: auction.influencer_id,
+      auction_id: auction.auction_id,
+      winning_bid_amount: highestBid.bid_amount,
+      platform_fee: platformFee,
+      influencer_payout: influencerPayout,
+      call_status: 'pending', // ← Talk完了後に決済
+    });
 
-    // 5. 他の入札者の与信解放
-    const losingBids = await getLosingBids(auction.id, winningBid.id);
-    for (const bid of losingBids) {
-      await cancelPayment(bid.stripe_payment_intent_id);
+    // 5. オークション終了
+    await supabase
+      .from('auctions')
+      .update({ status: 'ended', winner_user_id: highestBid.user_id })
+      .eq('id', auction.auction_id);
+
+    // 6. 他の入札者の与信解放（これは即座に実行）
+    const { data: otherBids } = await supabase
+      .from('bids')
+      .select('stripe_payment_intent_id')
+      .eq('auction_id', auction.auction_id)
+      .neq('user_id', highestBid.user_id);
+
+    for (const bid of otherBids) {
+      await stripe.paymentIntents.cancel(bid.stripe_payment_intent_id);
     }
   }
-
-  // 6. オークション終了
-  await supabase
-    .from('auctions')
-    .update({ status: 'ended', current_winner_id: winningBid.user_id })
-    .eq('id', auction.id);
 }
 ```
+
+**重要:**
+- 落札者の`stripe_payment_intent_id`は`authorized`状態のまま保持
+- 決済確定（capture）はTalk完了後にDaily.co Webhookで実行
+
+**実装ファイル:** `backend/src/server.ts:1050-1177`
+
+### 7. Talk完了後の決済判定と確定（Webhook活用）
+
+#### 7.1 Daily.co Webhookイベント受信
+**実装ファイル**: `backend/src/routes/dailyWebhook.ts`
+
+**受信イベント**:
+- `participant.joined` - 参加者入室
+- `participant.left` - 参加者退室
+- `room.ended` - ルーム終了
+- `meeting.ended` - ミーティング終了
+
+**処理フロー**:
+```typescript
+// 1. Webhookイベント受信
+router.post('/webhook', async (req, res) => {
+  const event = req.body;
+
+  // 2. イベントログをDBに保存
+  await supabase.from('daily_call_events').insert({
+    purchased_slot_id: purchasedSlot.id,
+    event_type: event.type,
+    user_id: event.participant?.user_id,
+    room_end_reason: event.end_reason || (event.expired_at ? 'duration' : 'manual'),
+    event_data: event,
+  });
+
+  // 3. room.ended イベントの場合、決済処理をトリガー
+  if (event.type === 'room.ended' || event.type === 'meeting.ended') {
+    processTalkPayment(supabase, purchasedSlot.id);
+  }
+
+  res.status(200).json({ received: true });
+});
+```
+
+**実装ファイル:** `backend/src/routes/dailyWebhook.ts:12-110`
+
+#### 7.2 Talk完了判定ロジック
+**実装ファイル**: `backend/src/services/paymentCapture.ts`
+
+**判定条件（すべて満たす必要あり）:**
+
+1. **インフルエンサーが参加した**
+```typescript
+const influencerJoined = events.some((e) =>
+  (e.event_type === 'participant.joined') &&
+  (e.user_id === purchasedSlot.influencer_user_id)
+);
+```
+
+2. **ルームが「規定時間経過による自動終了」になった**
+```typescript
+const roomEndedByDuration = events.some((e) =>
+  (e.event_type === 'room.ended' || e.event_type === 'meeting.ended') &&
+  (e.room_end_reason === 'duration')
+);
+```
+
+3. **インフルエンサーが途中退出していない**
+```typescript
+function hasInfluencerLeftBeforeRoomEnd(events, influencerUserId) {
+  const roomEndEvent = events.find(e =>
+    e.event_type === 'room.ended' || e.event_type === 'meeting.ended'
+  );
+  const influencerLeftEvent = events.find(e =>
+    e.event_type === 'participant.left' && e.user_id === influencerUserId
+  );
+
+  if (!influencerLeftEvent) return false; // 最後までいた
+
+  const roomEndTime = new Date(roomEndEvent.created_at);
+  const leftTime = new Date(influencerLeftEvent.created_at);
+
+  return leftTime < roomEndTime; // 終了前に退出したらtrue
+}
+```
+
+**実装ファイル:** `backend/src/services/paymentCapture.ts:25-182`
+
+#### 7.3 決済確定または与信キャンセル
+**実装ファイル**: `backend/src/services/paymentCapture.ts`
+
+**ケースA: すべての条件を満たした → 決済確定**
+```typescript
+// 1. Payment Intentをcapture
+const capturedPayment = await stripe.paymentIntents.capture(paymentIntentId);
+
+// 2. payment_transactionsに記録
+await supabase.from('payment_transactions').insert({
+  purchased_slot_id: purchasedSlotId,
+  stripe_payment_intent_id: capturedPayment.id,
+  amount: bidAmount,
+  platform_fee: platformFee,
+  influencer_payout: influencerPayout,
+  status: 'captured',
+});
+
+// 3. purchased_slotsのステータス更新
+await supabase.from('purchased_slots').update({
+  call_status: 'completed',
+}).eq('id', purchasedSlotId);
+```
+
+**ケースB: 条件を満たさない → 与信キャンセル**
+```typescript
+// 1. Payment Intentをキャンセル
+await stripe.paymentIntents.cancel(paymentIntentId);
+
+// 2. purchased_slotsのステータス更新
+await supabase.from('purchased_slots').update({
+  call_status: 'cancelled',
+}).eq('id', purchasedSlotId);
+
+// ファンのカードへの与信が解放され、課金されない
+```
+
+**実装ファイル:** `backend/src/services/paymentCapture.ts:193-306`
+
+**メリット:**
+- ✅ インフルエンサーno-show時に課金されない
+- ✅ 途中退出時に課金されない
+- ✅ 規定時間前終了時に課金されない
+- ✅ より公平で信頼できるプラットフォーム
 
 ## データ構造
 
