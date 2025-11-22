@@ -24,6 +24,7 @@
 ### セットアップ・運用
 - **[DATABASE_MIGRATIONS.md](./setup/DATABASE_MIGRATIONS.md)** - データベースマイグレーション管理ガイド（最新）
 - **[SUPABASE_CLI_AUTH.md](./setup/SUPABASE_CLI_AUTH.md)** - Supabase CLI認証設定
+- **[RESEND_EMAIL_SETUP.md](./setup/RESEND_EMAIL_SETUP.md)** - Resend任意アドレスへのメール送信設定ガイド
 - **[PRODUCTION_SETUP.md](./deployment/PRODUCTION_SETUP.md)** - Production環境セットアップガイド
 
 ### テスト・QA
