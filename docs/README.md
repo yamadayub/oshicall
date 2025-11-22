@@ -20,11 +20,19 @@
 - **[follow.md](./functions/follow.md)** - フォロー機能（フォロー/アンフォロー、優先表示）
 - **[ranking.md](./functions/ranking.md)** - ランキング機能（インフルエンサーランキング、人気Talk枠）
 
+### セットアップ・運用
+- **[DATABASE_MIGRATIONS.md](./setup/DATABASE_MIGRATIONS.md)** - データベースマイグレーション管理ガイド（最新）
+- **[SUPABASE_CLI_AUTH.md](./setup/SUPABASE_CLI_AUTH.md)** - Supabase CLI認証設定
+- **[PRODUCTION_SETUP.md](./deployment/PRODUCTION_SETUP.md)** - Production環境セットアップガイド
+
 ### テスト・QA
 - **[E2E_TEST_GUIDE.md](./test/E2E_TEST_GUIDE.md)** - E2Eテストガイド
 - **[STAGING_E2E_TEST_GUIDE.md](./test/STAGING_E2E_TEST_GUIDE.md)** - ステージング環境テストガイド
 - **[TEST_ACCOUNTS.md](./test/TEST_ACCOUNTS.md)** - テストアカウント情報
 - **[TEST_CARD_REGISTRATION.md](./test/TEST_CARD_REGISTRATION.md)** - テストカード登録ガイド
+
+### アーカイブ
+- **[archive/](./archive/)** - 過去のプロジェクト履歴（参照専用）
 
 ## 🗂️ ドキュメント構成
 

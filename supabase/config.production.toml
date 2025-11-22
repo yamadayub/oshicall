@@ -12,7 +12,6 @@ max_rows = 1000
 
 [auth]
 enabled = true
-port = 54322
 site_url = "http://localhost:3000"
 additional_redirect_urls = ["https://localhost:3000"]
 jwt_expiry = 3600
@@ -31,7 +30,6 @@ major_version = 15
 
 [realtime]
 enabled = true
-port = 54325
 
 [studio]
 enabled = true
@@ -40,7 +38,9 @@ port = 54326
 [storage]
 enabled = true
 port = 54327
-image_transformation = true
+
+[storage.image_transformation]
+enabled = true
 
 [edge_functions]
 enabled = true
@@ -60,3 +60,4 @@ pop3_port = 54326
 enabled = true
 port = 54330
 
+project_id = "atkhwwqunwmpzqkgavtx"

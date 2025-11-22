@@ -2,60 +2,336 @@
 
 Supabase CLIを使用したデータベーススキーマのバージョン管理とマイグレーション管理の完全ガイドです。
 
+**最終更新**: 2025年11月22日
+**対象環境**: Staging (`wioealhsienyubwegvdu`) / Production (`atkhwwqunwmpzqkgavtx`)
+
 ---
 
 ## 目次
 
-- [クイックスタート](#クイックスタート) - 今すぐ始める（5分）
-- [セットアップ](#セットアップ) - 初回設定
-- [日常的な使い方](#日常的な使い方) - 実践的なワークフロー
-- [認証方法](#認証方法) - supabase login vs 環境変数
+- [環境構成](#環境構成)
+- [初期セットアップ](#初期セットアップ)
+- [環境間のスキーマ同期](#環境間のスキーマ同期)
+- [日常的なマイグレーション管理](#日常的なマイグレーション管理)
 - [ベストプラクティス](#ベストプラクティス)
 - [トラブルシューティング](#トラブルシューティング)
 
 ---
 
-## クイックスタート
+## 環境構成
 
-**前提条件**: Supabase CLI がインストール済み（`supabase --version`で確認）
+### プロジェクト一覧
 
-### ステップ1: 認証（1分）
+| 環境 | Project Ref | 用途 | URL |
+|------|-------------|------|-----|
+| **Staging** | `wioealhsienyubwegvdu` | 開発・テスト環境 | https://supabase.com/dashboard/project/wioealhsienyubwegvdu |
+| **Production** | `atkhwwqunwmpzqkgavtx` | 本番環境 | https://supabase.com/dashboard/project/atkhwwqunwmpzqkgavtx |
+
+### マイグレーション管理の原則
+
+```
+開発フロー:
+1. Staging環境で開発・テスト
+2. Gitにコミット（マイグレーションファイル）
+3. Production環境に適用
+```
+
+---
+
+## 初期セットアップ
+
+### ステップ1: Supabase CLIのインストール確認
 
 ```bash
-# ブラウザで自動認証
-supabase login
+# バージョン確認
+npx supabase --version
+
+# 期待される出力: 2.58.5 以上
+```
+
+### ステップ2: Supabaseアカウント認証
+
+```bash
+# ブラウザで自動認証（推奨）
+npx supabase login
 
 # 成功すると "You are now logged in" と表示される
 ```
 
-### ステップ2: 動作確認（1分）
+**認証トークンの保存場所**:
+- macOS: システムKeychain
+- Linux: `~/.config/supabase/`
+- Windows: OS資格情報マネージャー
+
+**利点**:
+- ✅ トークンを自動管理（コピペ不要）
+- ✅ セキュア
+- ✅ 継続的に使用可能
+- ✅ 有効期限の自動管理
+
+### ステップ3: プロジェクト一覧の確認
 
 ```bash
-# プロジェクト一覧を確認
-supabase projects list
+# アクセストークンを使用してプロジェクト一覧を取得
+SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" npx supabase projects list
 
-# 既にリンク済みのプロジェクトを確認
-# ● マークが付いているのが現在リンク中のプロジェクト
+# 出力例:
+#   LINKED | ORG ID | REFERENCE ID         | NAME                | REGION
+#     ●    | ...    | wioealhsienyubwegvdu | oshicall-staging    | Tokyo
+#          | ...    | atkhwwqunwmpzqkgavtx | oshicall-production | Tokyo
 ```
 
-### ステップ3: 新しいマイグレーションを作成（3分）
+### ステップ4: プロジェクトにリンク
 
 ```bash
+# Staging環境にリンク
+SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" npx supabase link --project-ref wioealhsienyubwegvdu
+
+# または Production環境にリンク
+SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" npx supabase link --project-ref atkhwwqunwmpzqkgavtx
+```
+
+---
+
+## 環境間のスキーマ同期
+
+### シナリオ: Staging → Production への初期スキーマ移行
+
+新しいProduction環境を作成した際、Staging環境の既存スキーマをProductionに反映する手順です。
+
+#### ステップ1: Staging環境からスキーマ情報を取得
+
+Supabase DashboardのSQL Editorで以下のクエリを実行します。
+
+**1-1. テーブル構造の取得**
+
+```sql
+SELECT
+    'CREATE TABLE IF NOT EXISTS ' ||
+    schemaname || '.' || tablename || ' (' ||
+    string_agg(
+        column_name || ' ' || data_type ||
+        CASE
+            WHEN character_maximum_length IS NOT NULL
+            THEN '(' || character_maximum_length || ')'
+            ELSE ''
+        END ||
+        CASE
+            WHEN is_nullable = 'NO' THEN ' NOT NULL'
+            ELSE ''
+        END,
+        ', '
+    ) || ');'
+FROM pg_tables t
+JOIN information_schema.columns c
+    ON c.table_schema = t.schemaname
+    AND c.table_name = t.tablename
+WHERE schemaname = 'public'
+GROUP BY schemaname, tablename
+ORDER BY tablename;
+```
+
+**1-2. ENUM型の定義取得**
+
+```sql
+SELECT
+    n.nspname AS schema,
+    t.typname AS enum_name,
+    string_agg(e.enumlabel, ''', ''' ORDER BY e.enumsortorder) AS enum_values
+FROM pg_type t
+JOIN pg_enum e ON t.oid = e.enumtypid
+JOIN pg_namespace n ON t.typnamespace = n.oid
+WHERE n.nspname = 'public'
+GROUP BY n.nspname, t.typname
+ORDER BY t.typname;
+```
+
+**1-3. PRIMARY KEY/FOREIGN KEYの取得**
+
+```sql
+SELECT
+    tc.table_name,
+    tc.constraint_type,
+    tc.constraint_name,
+    kcu.column_name,
+    ccu.table_name AS foreign_table_name,
+    ccu.column_name AS foreign_column_name
+FROM information_schema.table_constraints AS tc
+JOIN information_schema.key_column_usage AS kcu
+    ON tc.constraint_name = kcu.constraint_name
+    AND tc.table_schema = kcu.table_schema
+LEFT JOIN information_schema.constraint_column_usage AS ccu
+    ON ccu.constraint_name = tc.constraint_name
+    AND ccu.table_schema = tc.table_schema
+WHERE tc.table_schema = 'public'
+    AND tc.constraint_type IN ('PRIMARY KEY', 'FOREIGN KEY', 'UNIQUE')
+ORDER BY tc.table_name, tc.constraint_type, kcu.ordinal_position;
+```
+
+**1-4. DEFAULT値とNOT NULL制約の取得**
+
+```sql
+SELECT
+    table_name,
+    column_name,
+    column_default,
+    is_nullable,
+    data_type,
+    udt_name
+FROM information_schema.columns
+WHERE table_schema = 'public'
+    AND (column_default IS NOT NULL OR is_nullable = 'NO')
+ORDER BY table_name, ordinal_position;
+```
+
+**1-5. インデックスの取得**
+
+```sql
+SELECT
+    schemaname,
+    tablename,
+    indexname,
+    indexdef
+FROM pg_indexes
+WHERE schemaname = 'public'
+ORDER BY tablename, indexname;
+```
+
+#### ステップ2: 初期マイグレーションファイルの作成
+
+取得した情報を基に、初期マイグレーションファイルを作成します。
+
+```bash
+# タイムスタンプ生成
+TIMESTAMP=$(date +%Y%m%d%H%M%S)
+
+# マイグレーションファイル作成
+cat > supabase/migrations/${TIMESTAMP}_initial_schema.sql << 'EOF'
+-- ============================================
+-- 初期スキーマ作成マイグレーション
+-- Staging環境から取得したスキーマをProduction環境に適用
+-- ============================================
+
+-- ============================================
+-- ENUM型の作成
+-- ============================================
+
+CREATE TYPE auction_status AS ENUM ('draft', 'scheduled', 'active', 'ended', 'cancelled');
+CREATE TYPE call_slot_status AS ENUM ('planned', 'live', 'completed');
+CREATE TYPE call_status AS ENUM ('pending', 'ready', 'in_progress', 'completed', 'cancelled', 'no_show');
+CREATE TYPE daily_event_type AS ENUM ('participant-joined', 'participant-left', 'room-ended', 'meeting-ended');
+CREATE TYPE payment_status AS ENUM ('pending', 'authorized', 'captured', 'failed', 'refunded');
+CREATE TYPE user_type AS ENUM ('influencer', 'fan');
+
+-- ============================================
+-- テーブルの作成（依存関係の順序）
+-- ============================================
+
+-- usersテーブル
+CREATE TABLE users (
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    auth_user_id uuid NOT NULL,
+    display_name character varying(100) NOT NULL,
+    bio text,
+    profile_image_url text,
+    -- ... その他のカラム定義
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ... その他のテーブル定義
+
+-- ============================================
+-- PRIMARY KEY制約の追加
+-- ============================================
+
+ALTER TABLE ONLY users ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+-- ... その他の制約
+
+-- ============================================
+-- FOREIGN KEY制約の追加
+-- ============================================
+
+ALTER TABLE ONLY call_slots ADD CONSTRAINT call_slots_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
+-- ... その他の外部キー制約
+
+-- ============================================
+-- インデックスの作成
+-- ============================================
+
+CREATE INDEX idx_users_auth_user ON users USING btree (auth_user_id);
+-- ... その他のインデックス
+
+EOF
+```
+
+#### ステップ3: Production環境にリンク
+
+```bash
+# Production環境にリンク
+SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" npx supabase link --project-ref atkhwwqunwmpzqkgavtx
+```
+
+#### ステップ4: マイグレーションの適用
+
+```bash
+# 適用予定のマイグレーションを確認
+SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" npx supabase db push --linked
+
+# プロンプトで確認メッセージが表示されたら "Y" を入力
+```
+
+**重要な注意点**:
+- マイグレーションファイルのタイムスタンプは、最も古い日付にする必要があります
+- 既存のマイグレーションファイルよりも古いタイムスタンプを設定してください
+- 例: 既存ファイルが `20251113003634_*.sql` なら、初期スキーマは `20251113000000_initial_schema.sql` にする
+
+#### ステップ5: 適用結果の検証
+
+```bash
+# マイグレーション履歴を確認
+SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" npx supabase migration list --linked
+
+# 出力例:
+#   Local          | Remote         | Time (UTC)
+#  ----------------|----------------|---------------------
+#   20251113000000 | 20251113000000 | 2025-11-13 00:00:00
+#   20251113003634 | 20251113003634 | 2025-11-13 00:36:34
+```
+
+Supabase Dashboardでも確認:
+1. Table Editorでテーブルが作成されているか確認
+2. Database → Migrations でマイグレーション履歴を確認
+
+---
+
+## 日常的なマイグレーション管理
+
+### パターン1: 新しい機能のマイグレーション作成
+
+最も一般的なワークフロー：
+
+```bash
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 1. Staging環境で開発
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# Staging環境にリンク
+SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" npx supabase link --project-ref wioealhsienyubwegvdu
+
 # マイグレーションファイルを作成
-supabase migration new add_my_feature
+npx supabase migration new add_feature_name
 
 # 生成されたファイルを編集
-# supabase/migrations/20251102123456_add_my_feature.sql
-
-# 例: 新しいテーブルを追加
+# 例: 新しいテーブル追加
 cat > supabase/migrations/$(ls -t supabase/migrations/*.sql | head -1) << 'EOF'
 -- Add notifications table
 CREATE TABLE IF NOT EXISTS notifications (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   message TEXT NOT NULL,
   read BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Add RLS policies
@@ -66,121 +342,29 @@ CREATE POLICY "Users can view own notifications"
   USING (auth.uid() = user_id);
 EOF
 
-# 本番に適用
-supabase db push
+# Staging環境に適用
+SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" npx supabase db push --linked
 
-# コミット
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 2. Gitにコミット
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 git add supabase/migrations/
 git commit -m "Add notifications table"
 git push origin main
-```
 
-**これで完了です！** 🎉
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 3. Production環境に適用
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
----
+# Production環境にリンク
+SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" npx supabase link --project-ref atkhwwqunwmpzqkgavtx
 
-## セットアップ
+# マイグレーション一覧を確認
+SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" npx supabase migration list --linked
 
-### 前提条件
-
-- ✅ Supabase CLI インストール済み
-- ✅ プロジェクト: `wioealhsienyubwegvdu` (oshicall-staging)
-- ✅ Git リポジトリ初期化済み
-
-### 1. 認証
-
-Supabase CLIの認証には2つの方法があります：
-
-#### 方法1: `supabase login`（推奨）✨
-
-```bash
-# ブラウザで自動認証
-supabase login
-```
-
-**利点**:
-- ✅ トークンを自動管理（コピペ不要）
-- ✅ セキュア（macOS Keychainに保存）
-- ✅ 継続的に使用可能
-- ✅ 有効期限の自動管理
-- ✅ 一度実行すれば二度と不要
-
-**トークン保存場所**:
-- macOS: システムKeychain
-- Linux: `~/.config/supabase/`
-- Windows: OS資格情報マネージャー
-
-#### 方法2: 環境変数（CI/CD用のみ）
-
-```bash
-# .env に追加
-SUPABASE_ACCESS_TOKEN=sbp_your_token_here
-
-# 使用時
-source .env
-supabase projects list
-```
-
-**用途**: CI/CD環境（GitHub Actions等）でのみ使用
-**欠点**: 毎回 `source .env` が必要、手動管理
-
-### 2. プロジェクトリンク確認
-
-```bash
-# プロジェクト一覧を表示
-supabase projects list
-
-# ● マークが付いていれば既にリンク済み
-# なければ以下でリンク:
-supabase link --project-ref wioealhsienyubwegvdu
-```
-
-### 3. 現在の状態確認
-
-```bash
-# マイグレーション一覧
-supabase migration list
-
-# ローカルとリモートの差分確認
-supabase db diff --schema public
-```
-
----
-
-## 日常的な使い方
-
-### パターン1: 新しい機能のマイグレーション作成
-
-最も一般的なワークフロー：
-
-```bash
-# 1. マイグレーションファイルを作成
-supabase migration new add_feature_name
-
-# 2. 生成されたファイルを編集
-code supabase/migrations/$(ls -t supabase/migrations/*.sql | head -1)
-
-# 3. SQLを記述（例）
-cat > supabase/migrations/latest.sql << 'EOF'
--- Add new column
-ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT;
-
--- Create index
-CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
-
--- Update RLS policy
-CREATE POLICY "Users can update own phone"
-  ON users FOR UPDATE
-  USING (auth.uid() = auth_user_id);
-EOF
-
-# 4. 本番に適用
-supabase db push
-
-# 5. コミット
-git add supabase/migrations/
-git commit -m "Add phone column to users table"
-git push origin main
+# Production環境に適用
+SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" npx supabase db push --linked
 ```
 
 ### パターン2: Dashboardで変更した内容を記録
@@ -188,10 +372,10 @@ git push origin main
 Supabase Dashboardで試行錯誤した後、確定したスキーマをマイグレーションとして記録：
 
 ```bash
-# 1. Supabase Dashboard で変更（テーブル追加、カラム変更など）
+# 1. Supabase Dashboardで変更（テーブル追加、カラム変更など）
 
 # 2. 差分を確認してマイグレーションを生成
-supabase db diff --schema public > supabase/migrations/$(date +%Y%m%d%H%M%S)_dashboard_changes.sql
+SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" npx supabase db diff --linked --schema public > supabase/migrations/$(date +%Y%m%d%H%M%S)_dashboard_changes.sql
 
 # 3. 生成されたファイルを確認・編集
 code supabase/migrations/$(ls -t supabase/migrations/*.sql | head -1)
@@ -200,137 +384,6 @@ code supabase/migrations/$(ls -t supabase/migrations/*.sql | head -1)
 git add supabase/migrations/
 git commit -m "Record dashboard schema changes"
 git push origin main
-```
-
-### パターン3: ローカル開発環境で試す
-
-Docker Desktopが必要：
-
-```bash
-# 1. ローカルSupabaseを起動
-supabase start
-
-# 2. ローカルで開発・テスト
-# - ローカルダッシュボード: http://localhost:54323
-# - ローカルAPI: http://localhost:54321
-
-# 3. マイグレーションをローカルで適用
-supabase db reset
-
-# 4. 問題なければ本番に適用
-supabase db push
-```
-
----
-
-## 認証方法
-
-### 方法の選択
-
-| 環境 | 推奨方法 | 理由 |
-|------|---------|------|
-| **ローカル開発** | `supabase login` | 簡単、自動管理、セキュア |
-| **CI/CD** | 環境変数 | スクリプト化しやすい |
-| **チーム開発** | 各自 `supabase login` | 個人のアカウントで認証 |
-
-### ローカル開発環境（個人）
-
-```bash
-# 初回のみ実行
-supabase login
-
-# その後は自動的に認証状態が維持される
-supabase projects list  # ログイン不要
-supabase db push        # ログイン不要
-```
-
-### CI/CD環境（GitHub Actions等）
-
-```yaml
-# .github/workflows/migrate.yml
-name: Deploy Database Migrations
-
-on:
-  push:
-    branches: [main]
-    paths: ['supabase/migrations/**']
-
-jobs:
-  migrate:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Setup Supabase CLI
-        uses: supabase/setup-cli@v1
-        with:
-          version: latest
-
-      - name: Run Migrations
-        run: supabase db push
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-```
-
-### 認証状態の確認
-
-```bash
-# プロジェクト一覧を取得（成功すればログイン済み）
-supabase projects list
-
-# 成功の場合
-# LINKED | ORG ID | REFERENCE ID | NAME | REGION
-#   ●    | ...    | wioealhsienyubwegvdu | oshicall-staging | ...
-
-# 失敗の場合（未ログイン）
-# Access token not provided...
-```
-
----
-
-## 環境管理
-
-### ローカル環境（Local）
-
-```bash
-# ローカルSupabaseを起動（Docker必要）
-supabase start
-
-# マイグレーション適用
-supabase db reset
-
-# ローカルダッシュボード
-open http://localhost:54323
-```
-
-### ステージング環境
-
-```bash
-# ステージング用プロジェクトにリンク
-supabase link --project-ref your-staging-project-ref
-
-# マイグレーション適用
-supabase db push
-```
-
-### 本番環境（Production）
-
-```bash
-# 本番プロジェクトにリンク
-supabase link --project-ref wioealhsienyubwegvdu
-
-# マイグレーション適用（慎重に！）
-supabase db push
-```
-
-### 環境の切り替え
-
-```bash
-# 現在リンクしているプロジェクトを確認
-cat supabase/.temp/project-ref
-
-# 別のプロジェクトに切り替え
-supabase link --project-ref another-project-ref
 ```
 
 ---
@@ -342,13 +395,13 @@ supabase link --project-ref another-project-ref
 #### 1. 小さく頻繁にマイグレーション
 
 ```bash
-# ❌ BAD: 1つのマイグレーションで大量の変更
-20251102_big_update.sql  # 10個のテーブル変更
-
 # ✅ GOOD: 1つのマイグレーション = 1つの機能変更
 20251102120000_add_notifications_table.sql
 20251102130000_add_user_preferences_table.sql
 20251102140000_update_users_rls_policies.sql
+
+# ❌ BAD: 1つのマイグレーションで大量の変更
+20251102_big_update.sql  # 10個のテーブル変更
 ```
 
 #### 2. わかりやすいファイル名
@@ -362,7 +415,6 @@ supabase link --project-ref another-project-ref
 # ❌ BAD
 20251102120000_update.sql
 20251102130000_fix.sql
-20251102140000_new_feature.sql
 ```
 
 #### 3. 冪等性を保つ
@@ -398,11 +450,11 @@ CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 ```sql
 -- テーブル作成
 CREATE TABLE notifications (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   message TEXT NOT NULL,
   read BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- ✅ IMPORTANT: RLSを有効化
@@ -412,10 +464,6 @@ ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view own notifications"
   ON notifications FOR SELECT
   USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can update own notifications"
-  ON notifications FOR UPDATE
-  USING (auth.uid() = user_id);
 ```
 
 ### ❌ DON'T
@@ -423,13 +471,11 @@ CREATE POLICY "Users can update own notifications"
 #### 1. 本番DBで直接変更しない
 
 ```bash
-# ❌ BAD
-# Supabase Dashboardで直接本番DBを変更
+# ❌ BAD: Supabase Dashboardで直接本番DBを変更
 # → マイグレーション履歴に記録されない
 
-# ✅ GOOD
-# Dashboardで変更 → supabase db diff で記録
-supabase db diff --schema public > migration.sql
+# ✅ GOOD: Dashboardで変更 → supabase db diff で記録
+npx supabase db diff --schema public > migration.sql
 git commit && git push
 ```
 
@@ -440,7 +486,7 @@ git commit && git push
 code supabase/migrations/20251101_add_users.sql
 
 # ✅ GOOD: 新しいマイグレーションで修正
-supabase migration new fix_users_table
+npx supabase migration new fix_users_table
 ```
 
 #### 3. データ削除を含む変更は慎重に
@@ -451,49 +497,44 @@ ALTER TABLE users DROP COLUMN email;
 
 -- ✅ BETTER: まずバックアップ
 -- 1. Supabase Dashboardでテーブルをエクスポート
--- 2. ステージング環境でテスト
--- 3. 本番環境に適用
+-- 2. Staging環境でテスト
+-- 3. Production環境に適用
 ```
 
 ---
 
-## マイグレーション管理のルール
+## 環境の切り替え
 
-### ファイル命名規則
-
-Supabase CLIは `<timestamp>_name.sql` 形式を要求：
+### 現在リンク中の環境を確認
 
 ```bash
-# ✅ 正しい形式
-20251102120000_add_notifications_table.sql
-20251102130530_update_users_rls.sql
+# 現在リンクしているプロジェクトを確認
+cat supabase/.temp/project-ref
 
-# ❌ 認識されない形式
-add_notifications_table.sql
-2024-11-02_feature.sql
+# 出力例: wioealhsienyubwegvdu (Staging)
+# または: atkhwwqunwmpzqkgavtx (Production)
 ```
 
-### マイグレーションの順序
-
-タイムスタンプ順に適用されます：
+### 環境切り替えコマンド
 
 ```bash
-supabase/migrations/
-├── 20251101120000_create_users_table.sql        # 1番目
-├── 20251101130000_add_users_email_column.sql    # 2番目
-└── 20251102090000_create_notifications_table.sql # 3番目
+# Staging環境に切り替え
+SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" npx supabase link --project-ref wioealhsienyubwegvdu
+
+# Production環境に切り替え
+SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" npx supabase link --project-ref atkhwwqunwmpzqkgavtx
 ```
 
-### Gitでの管理
+### エイリアス設定（推奨）
 
 ```bash
-# すべてのマイグレーションをコミット
-git add supabase/migrations/
-git commit -m "Add feature: notifications"
-git push origin main
+# ~/.zshrc または ~/.bashrc に追加
+alias sb-staging='SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" npx supabase link --project-ref wioealhsienyubwegvdu'
+alias sb-prod='SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" npx supabase link --project-ref atkhwwqunwmpzqkgavtx'
 
-# マイグレーションファイルは絶対に削除しない
-# 履歴として永久保存
+# 使い方
+sb-staging  # Staging環境にリンク
+sb-prod     # Production環境にリンク
 ```
 
 ---
@@ -504,8 +545,11 @@ git push origin main
 
 ```bash
 # 原因: 認証されていない
-# 解決策:
-supabase login
+# 解決策1: supabase login を実行
+npx supabase login
+
+# 解決策2: 環境変数を設定
+export SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6"
 ```
 
 ### エラー: "file name must match pattern"
@@ -513,7 +557,7 @@ supabase login
 ```bash
 # 原因: ファイル名が命名規則に従っていない
 # 解決策: 正しい形式で作成
-supabase migration new feature_name
+npx supabase migration new feature_name
 # → 20251102123456_feature_name.sql が生成される
 ```
 
@@ -521,164 +565,38 @@ supabase migration new feature_name
 
 ```bash
 # 1. エラーメッセージを確認
-supabase db push
+SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" npx supabase db push --linked
 
 # 2. マイグレーションファイルを修正
 code supabase/migrations/latest.sql
 
 # 3. 再試行
-supabase db push
+SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" npx supabase db push --linked
 ```
 
 ### ローカルとリモートの差分を確認
 
 ```bash
 # 差分を表示
-supabase db diff --schema public
+SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" npx supabase db diff --linked --schema public
 
 # 差分をマイグレーションファイルとして保存
-supabase db diff --schema public > supabase/migrations/$(date +%Y%m%d%H%M%S)_sync.sql
+SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" npx supabase db diff --linked --schema public > supabase/migrations/$(date +%Y%m%d%H%M%S)_sync.sql
 ```
 
-### Docker が起動していない
+### Production環境への適用漏れを確認
 
 ```bash
-# エラー: Cannot connect to the Docker daemon
-# 解決策: Docker Desktop を起動
+# 1. Production環境にリンク
+SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" npx supabase link --project-ref atkhwwqunwmpzqkgavtx
 
-# macOS
-open -a Docker
+# 2. マイグレーション一覧を確認
+SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" npx supabase migration list --linked
 
-# または、Docker不要のコマンドを使用
-supabase db push  # Docker不要
-```
-
----
-
-## レガシーマイグレーションについて
-
-プロジェクトには `supabase/migrations.backup/` にレガシーマイグレーションが保存されています：
-
-```bash
-supabase/migrations.backup/
-├── add_buy_now_price_to_call_slots.sql
-├── add_influencer_application_status.sql
-├── check_and_fix_follows.sql
-├── create_follows_from_scratch.sql
-├── create_follows_table.sql
-├── create_follows_table_fixed.sql
-├── fix_follows_policies_only.sql
-├── fix_follows_rls_policies.sql
-└── setup_finalize_auctions_cron.sql
-```
-
-**状態**:
-- ✅ 既に本番環境に適用済み
-- ⚠️ Supabase CLI の命名規則に従っていない
-- 📚 参照用として保持
-
-**今後の方針**:
-- 新しいマイグレーションは `supabase/migrations/` に作成
-- レガシーファイルは履歴として保持
-- 削除しない
-
----
-
-## 実践例
-
-### 例1: 新しいテーブルを追加
-
-```bash
-# 1. マイグレーション作成
-supabase migration new add_notifications_table
-
-# 2. ファイル編集
-cat > supabase/migrations/$(ls -t supabase/migrations/*.sql | head -1) << 'EOF'
--- Create notifications table
-CREATE TABLE IF NOT EXISTS notifications (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  type TEXT NOT NULL CHECK (type IN ('email', 'push', 'sms')),
-  title TEXT NOT NULL,
-  message TEXT NOT NULL,
-  read BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Add RLS policies
-ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can view own notifications"
-  ON notifications FOR SELECT
-  USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can update own notifications"
-  ON notifications FOR UPDATE
-  USING (auth.uid() = user_id);
-
--- Create indexes
-CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
-CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at DESC);
-EOF
-
-# 3. 本番適用
-supabase db push
-
-# 4. コミット
-git add supabase/migrations/
-git commit -m "Add notifications table with RLS policies"
-git push origin main
-```
-
-### 例2: カラム追加
-
-```bash
-# 1. マイグレーション作成
-supabase migration new add_user_bio_column
-
-# 2. ファイル編集
-cat > supabase/migrations/$(ls -t supabase/migrations/*.sql | head -1) << 'EOF'
--- Add bio column to users table
-ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT;
-
--- Add index for text search
-CREATE INDEX IF NOT EXISTS idx_users_bio_search
-  ON users USING gin(to_tsvector('english', bio));
-EOF
+# Local にあって Remote にないマイグレーションを確認
 
 # 3. 適用
-supabase db push
-
-# 4. コミット
-git add supabase/migrations/
-git commit -m "Add bio column to users table"
-git push origin main
-```
-
-### 例3: RLSポリシー変更
-
-```bash
-# 1. マイグレーション作成
-supabase migration new update_call_slots_rls_policies
-
-# 2. ファイル編集
-cat > supabase/migrations/$(ls -t supabase/migrations/*.sql | head -1) << 'EOF'
--- Drop old policy
-DROP POLICY IF EXISTS "Anyone can view published call slots" ON call_slots;
-
--- Create new policy with better performance
-CREATE POLICY "Anyone can view published call slots"
-  ON call_slots FOR SELECT
-  USING (is_published = true AND scheduled_start_time > NOW());
-EOF
-
-# 3. 適用
-supabase db push
-
-# 4. コミット
-git add supabase/migrations/
-git commit -m "Update call slots RLS policies for better performance"
-git push origin main
+SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" npx supabase db push --linked
 ```
 
 ---
@@ -703,46 +621,13 @@ Heroku
 
 Herokuはアプリを実行するだけで、マイグレーションは実行しません。
 
-### Q: ローカル開発環境は必要？
-
-**A**: ⚠️ オプションです。
-
-本番環境に直接適用できますが、ローカル環境があると：
-- ✅ 安全にテストできる
-- ✅ ロールバックが簡単
-- ✅ チーム開発しやすい
-
-```bash
-# Docker Desktop が必要
-supabase start  # ローカルSupabase起動
-```
-
-### Q: ステージング環境は？
-
-**A**: ✅ 推奨します。
-
-```bash
-# ステージング用プロジェクトを作成
-# Supabase Dashboardで新規プロジェクト作成
-
-# ステージングにリンク
-supabase link --project-ref staging-project-ref
-
-# マイグレーション適用
-supabase db push
-
-# 問題なければ本番へ
-supabase link --project-ref wioealhsienyubwegvdu
-supabase db push
-```
-
 ### Q: マイグレーションのロールバックは？
 
 **A**: ⚠️ 手動で対応します。
 
 ```bash
 # 1. 新しいマイグレーションでロールバックSQLを実行
-supabase migration new rollback_feature_name
+npx supabase migration new rollback_feature_name
 
 # 2. ロールバックSQLを記述
 cat > supabase/migrations/latest.sql << 'EOF'
@@ -751,52 +636,44 @@ DROP TABLE IF EXISTS notifications;
 EOF
 
 # 3. 適用
-supabase db push
+SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" npx supabase db push --linked
 ```
 
 ---
 
 ## まとめ
 
-### セットアップフロー（初回のみ）
-
-```bash
-# 1. 認証
-supabase login
-
-# 2. プロジェクトリンク確認
-supabase projects list
-
-# 3. 動作確認
-supabase migration list
-```
-
 ### 日常的なワークフロー
 
 ```bash
-# 1. マイグレーション作成
-supabase migration new feature_name
+# 1. Staging環境でマイグレーション作成
+sb-staging  # エイリアスを使用
+npx supabase migration new feature_name
 
 # 2. SQLを記述
 code supabase/migrations/latest.sql
 
-# 3. 本番適用
-supabase db push
+# 3. Staging環境に適用
+SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" npx supabase db push --linked
 
-# 4. コミット
+# 4. Gitにコミット
 git add supabase/migrations/
 git commit -m "Add feature"
 git push origin main
+
+# 5. Production環境に適用
+sb-prod  # エイリアスを使用
+SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" npx supabase db push --linked
 ```
 
 ### 重要なルール
 
 - ✅ すべてのスキーマ変更はマイグレーションファイル経由
-- ✅ 本番適用前にステージングでテスト（推奨）
+- ✅ Staging環境でテストしてからProduction環境に適用
 - ✅ マイグレーションは必ずGitにコミット
-- ✅ ロールバック計画を事前に用意
+- ✅ 冪等性を保つ（何回実行しても安全）
 - ❌ コミット済みマイグレーションは変更しない
-- ❌ 本番DBで直接変更しない
+- ❌ Production環境で直接変更しない
 
 ---
 
@@ -805,5 +682,5 @@ git push origin main
 - [Supabase CLI - Database Migrations](https://supabase.com/docs/guides/cli/local-development#database-migrations)
 - [Supabase CLI - Managing Environments](https://supabase.com/docs/guides/cli/managing-environments)
 - [Database Schema - Best Practices](https://supabase.com/docs/guides/database/overview)
-- [Supabase CLI - Getting Started](https://supabase.com/docs/guides/cli/getting-started)
-- [プロジェクト内ドキュメント](../../supabase/migrations/README.md) - マイグレーション履歴
+- [マイグレーション運用戦略](./MIGRATION_STRATEGY.md)
+- [プロジェクト内マイグレーション履歴](../../supabase/migrations/README.md)
