@@ -27,12 +27,18 @@ const supabase = createClient(
 const getAllowedOrigins = () => {
   const origins: string[] = [];
 
-  // 本番環境のドメイン（HTTP/HTTPS両方許可）
+  // 本番環境のドメイン
   origins.push('https://oshi-talk.com');
   origins.push('https://www.oshi-talk.com');
   origins.push('http://oshi-talk.com');
   origins.push('http://www.oshi-talk.com');
-  origins.push('https://oshicall-2936440db16b.herokuapp.com'); // 移行期間用
+
+  // Staging環境のドメイン
+  origins.push('https://staging.oshi-talk.com');
+
+  // Heroku直接ドメイン（移行期間用）
+  origins.push('https://oshicall-production-b6c5f1089a01.herokuapp.com');
+  origins.push('https://oshicall-staging-3eced5376515.herokuapp.com');
 
   // 開発環境の場合はlocalhostも許可
   if (process.env.NODE_ENV !== 'production') {
