@@ -104,6 +104,12 @@ git push heroku main
 
 ## ドキュメント
 
+### 🤖 Claude Code 設定
+- **[.claude/project-context.md](./.claude/project-context.md)** - Claude Codeが常に参照するプロジェクト設定ファイル
+  - プロジェクト概要、技術スタック、環境構成
+  - 重要な実装パターン、コーディング規約
+  - よく使うコマンド、注意事項
+
 ### セットアップガイド
 - [Supabase セットアップ](./docs/setup/SUPABASE_SETUP.md)
 - [Stripe セットアップ](./docs/setup/STRIPE_SETUP_STEP_BY_STEP.md)
