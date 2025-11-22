@@ -13,6 +13,7 @@
 - **[auction.md](./functions/auction.md)** - オークション機能（入札、即決購入、終了処理）
 - **[talk.md](./functions/talk.md)** - Talk（通話）機能（枠作成、予約、通話実施）
 - **[payment.md](./functions/payment.md)** - 決済・カード登録機能（Stripe連携、与信確保・決済確定）
+- **[ADVANCED_PAYMENT_FLOW.md](./functional/ADVANCED_PAYMENT_FLOW.md)** - 高度な決済フロー（Webhook活用、Talk完了検証）
 
 #### ユーザー機能
 - **[authentication.md](./functions/authentication.md)** - ユーザー認証機能（Supabase Auth、メール認証、OAuth）

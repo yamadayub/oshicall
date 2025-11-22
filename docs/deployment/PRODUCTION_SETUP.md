@@ -118,6 +118,29 @@ stripe listen --forward-to https://oshicall-prod.herokuapp.com/api/webhooks/stri
 3. **Domain** 設定でProductionドメイン追加
 4. **Recording** 設定（オプション）
 
+#### Webhook設定（重要）
+
+Daily.co Webhookは、Talk完了を検証して決済を確定するために**必須**です。
+
+```bash
+# Daily.co Webhook作成
+curl -X POST https://api.daily.co/v1/webhooks \
+  -H "Authorization: Bearer ${DAILY_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://oshi-talk.com/api/daily/webhook"}'
+
+# Webhook確認
+curl -X GET https://api.daily.co/v1/webhooks \
+  -H "Authorization: Bearer ${DAILY_API_KEY}"
+```
+
+**現在の設定（Production）:**
+- Webhook URL: `https://oshi-talk.com/api/daily/webhook`
+- UUID: `e2f06847-84b4-4a06-b859-9b0993b321da`
+- State: `ACTIVE`
+
+**詳細:** [高度な決済フロー](../functional/ADVANCED_PAYMENT_FLOW.md)を参照してください。
+
 ### ステップ7: デプロイ実行
 
 ```bash
