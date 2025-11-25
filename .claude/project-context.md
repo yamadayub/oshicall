@@ -58,8 +58,10 @@ oshicall/
 │   └── src/
 │       ├── server.ts          # メインサーバー（重要）
 │       ├── routes/            # APIルート
-│       │   ├── stripe.ts      # Stripe決済API
-│       │   └── dailyWebhook.ts # Daily.co Webhook
+│       │   ├── calls.ts       # Talk枠管理
+│       │   ├── dailyWebhook.ts # Daily.co Webhook
+│       │   ├── dailyAdmin.ts  # Daily.co 管理
+│       │   └── influencerApplication.ts # インフルエンサー申請
 │       └── services/          # ビジネスロジック
 │           └── paymentCapture.ts # 決済判定ロジック（重要）
 ├── src/                        # フロントエンド（React）
@@ -95,9 +97,9 @@ oshicall/
 ```bash
 SUPABASE_URL=https://atkhwwqunwmpzqkgavtx.supabase.co
 STRIPE_SECRET_KEY=sk_live_...
-STRIPE_WEBHOOK_SECRET=whsec_kPYFFL7KmE0u3hhVHkpyz0VidHWcddDr
-STRIPE_CONNECT_WEBHOOK_SECRET=whsec_jnK8EWONJkF2TaCvu4tqr4QlqP3Jp1ba
-DAILY_API_KEY=bbc2e4684848f2b4b0c5352fa96a3d9495277abf63be6112974ddc2fc1d38e4b
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_CONNECT_WEBHOOK_SECRET=whsec_...
+DAILY_API_KEY=...
 FRONTEND_URL=https://oshi-talk.com
 NODE_ENV=production
 ```
@@ -327,7 +329,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 
 ```bash
 # 1. Staging環境にリンク
-SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" \
+SUPABASE_ACCESS_TOKEN="sbp_..." \
   npx supabase link --project-ref wioealhsienyubwegvdu
 
 # 2. マイグレーションファイル作成
@@ -361,11 +363,11 @@ CREATE POLICY "Users can view own notifications"
 
 ```bash
 # 適用前に確認
-SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" \
+SUPABASE_ACCESS_TOKEN="sbp_..." \
   npx supabase migration list --linked
 
 # Staging環境に適用
-SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" \
+SUPABASE_ACCESS_TOKEN="sbp_..." \
   npx supabase db push --linked
 
 # 動作確認（Supabase Dashboard or アプリで確認）
@@ -383,15 +385,15 @@ git push origin main
 
 ```bash
 # Production環境にリンク
-SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" \
+SUPABASE_ACCESS_TOKEN="sbp_..." \
   npx supabase link --project-ref atkhwwqunwmpzqkgavtx
 
 # マイグレーション確認
-SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" \
+SUPABASE_ACCESS_TOKEN="sbp_..." \
   npx supabase migration list --linked
 
 # Production環境に適用
-SUPABASE_ACCESS_TOKEN="sbp_1d376e515f374d89cf3a887b037c70f83e4ad6a6" \
+SUPABASE_ACCESS_TOKEN="sbp_..." \
   npx supabase db push --linked
 ```
 
