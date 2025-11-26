@@ -71,10 +71,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email: authUser.email,
         metadata: authUser.user_metadata
       });
-      
+
       // Supabaseでユーザー情報を取得
       let user = await getSupabaseUser(authUser.id);
-      
+
       if (!user) {
         // 初回ログイン - デフォルトでファンとして登録
         console.log('🆕 新規ユーザー - usersテーブルに登録します（デフォルト: ファン）');
@@ -98,9 +98,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           is_influencer: user.is_influencer
         });
       }
-      
+
       setSupabaseUser(user);
-      
+
       // ユーザータイプを詳細にログ出力してデバッグ
       console.log('🔍 ユーザータイプ判定:', {
         is_influencer: user.is_influencer,
@@ -109,7 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         auth_user_id: user.auth_user_id,
         display_name: user.display_name
       });
-      
+
       // call_slotsテーブルから実際のユーザータイプを判定
       // インフルエンサーとしてcall_slotsを作成しているかチェック
       const { data: influencerSlots, error: influencerSlotsError } = await supabase
@@ -117,11 +117,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .select('id')
         .eq('user_id', user.id)
         .limit(1);
-      
+
       if (influencerSlotsError) {
         console.error('❌ call_slots取得エラー（インフルエンサー）:', influencerSlotsError);
       }
-      
+
       if (influencerSlots && influencerSlots.length > 0) {
         setUserType('influencer');
         console.log('👑 call_slotsからインフルエンサーとして設定:', { userId: user.id });
@@ -132,11 +132,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .select('id')
           .eq('fan_user_id', user.id)
           .limit(1);
-        
+
         if (fanSlotsError) {
           console.error('❌ call_slots取得エラー（ファン）:', fanSlotsError);
         }
-        
+
         if (fanSlots && fanSlots.length > 0) {
           setUserType('fan');
           console.log('👤 call_slotsからファンとして設定:', { userId: user.id });
@@ -196,33 +196,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // 環境に応じたリダイレクトURLを取得
       const getRedirectUrl = () => {
         const origin = window.location.origin;
-        
+
         // 本番環境（カスタムドメイン）
         if (origin === 'https://oshi-talk.com') {
-          return 'https://oshi-talk.com/';
+          return 'https://oshi-talk.com';
         }
-        
+
         // Staging環境（カスタムドメイン）
         if (origin === 'https://staging.oshi-talk.com') {
-          return 'https://staging.oshi-talk.com/';
+          return 'https://staging.oshi-talk.com';
         }
-        
+
         // Herokuドメイン（フォールバック）
         if (origin.includes('herokuapp.com')) {
-          return `${origin}/`;
+          // 末尾のスラッシュを削除
+          return origin.endsWith('/') ? origin.slice(0, -1) : origin;
         }
-        
+
         // ローカル開発環境
-        return 'http://localhost:5173/';
+        return 'http://localhost:5173';
       };
-      
+
       const redirectUrl = getRedirectUrl();
       console.log('🔐 Google認証開始:', {
         redirectUrl,
         hostname: window.location.hostname,
         origin: window.location.origin
       });
-      
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -235,12 +236,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           scopes: 'openid email profile',
         },
       });
-      
+
       if (error) {
         console.error('❌ Google認証エラー:', error);
         throw error;
       }
-      
+
       console.log('✅ Google認証リダイレクト開始:', data);
     } catch (error) {
       console.error('❌ Google認証処理エラー:', error);
@@ -250,7 +251,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const switchToInfluencerMode = async () => {
     if (!user) throw new Error('ログインが必要です');
-    
+
     try {
       const influencer = await switchToInfluencer(user);
       setSupabaseUser(influencer);
@@ -267,11 +268,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider 
-      value={{ 
+    <AuthContext.Provider
+      value={{
         user,
-        supabaseUser, 
-        userType, 
+        supabaseUser,
+        userType,
         isLoading,
         signIn,
         signUp,

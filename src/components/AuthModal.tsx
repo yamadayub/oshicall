@@ -11,6 +11,12 @@ interface AuthModalProps {
 
 export default function AuthModal({ isOpen, onClose, mode: initialMode = 'signin', onSuccess }: AuthModalProps) {
   const [mode, setMode] = useState<'signin' | 'signup'>(initialMode);
+
+  // 親コンポーネントからのモード変更を検知して反映
+  React.useEffect(() => {
+    setMode(initialMode);
+  }, [initialMode, isOpen]);
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -36,12 +42,12 @@ export default function AuthModal({ isOpen, onClose, mode: initialMode = 'signin
         }
         await signUp(email, password, displayName);
       }
-      
+
       // フォームをリセット
       setEmail('');
       setPassword('');
       setDisplayName('');
-      
+
       // 成功コールバック
       if (onSuccess) {
         onSuccess();
@@ -60,7 +66,7 @@ export default function AuthModal({ isOpen, onClose, mode: initialMode = 'signin
     setLoading(true);
     try {
       await signInWithGoogle();
-      
+
       // 成功コールバック
       if (onSuccess) {
         onSuccess();
