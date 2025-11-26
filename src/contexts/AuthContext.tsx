@@ -160,6 +160,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSupabaseUser(null);
       setUserType(null);
     } finally {
+      console.log('🏁 ユーザー同期完了');
       setIsLoading(false);
     }
   };

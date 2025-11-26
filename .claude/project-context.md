@@ -319,6 +319,9 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 
 ### データベース変更時の必須フロー
 
+**重要: AIエージェント作業ルール（Proposal First）**
+コードや設定を変更する際は、必ず事前に `implementation_plan.md` で変更内容を提案し、ユーザーの承認（GO）を得てから実装を行うこと。即座に修正を行わない。
+
 **重要: DBに変更を行う場合は必ず以下のフローに従う**
 
 ```
