@@ -193,13 +193,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithGoogle = async () => {
     try {
       // 環境に応じたリダイレクトURLを取得
+      // 環境に応じたリダイレクトURLを取得
       const getRedirectUrl = () => {
-        // 本番環境の場合
-        if (window.location.hostname.includes('herokuapp.com')) {
-          return `${window.location.origin}/`;
+        const origin = window.location.origin;
+        
+        // 本番環境（カスタムドメイン）
+        if (origin === 'https://oshi-talk.com') {
+          return 'https://oshi-talk.com/';
         }
+        
+        // Staging環境（カスタムドメイン）
+        if (origin === 'https://staging.oshi-talk.com') {
+          return 'https://staging.oshi-talk.com/';
+        }
+        
+        // Herokuドメイン（フォールバック）
+        if (origin.includes('herokuapp.com')) {
+          return `${origin}/`;
+        }
+        
         // ローカル開発環境
-        return window.location.origin;
+        return 'http://localhost:5173/';
       };
       
       const redirectUrl = getRedirectUrl();
