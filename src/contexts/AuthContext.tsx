@@ -199,12 +199,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const origin = window.location.origin;
 
         // 本番環境（カスタムドメイン）
-        if (origin === 'https://oshi-talk.com') {
+        if (origin === 'https://oshi-talk.com' || origin.includes('oshi-talk.com')) {
           return 'https://oshi-talk.com';
         }
 
         // Staging環境（カスタムドメイン）
-        if (origin === 'https://staging.oshi-talk.com') {
+        if (origin === 'https://staging.oshi-talk.com' || origin.includes('staging.oshi-talk.com')) {
           return 'https://staging.oshi-talk.com';
         }
 

@@ -35,6 +35,16 @@ case $ENV in
         exit 1
     fi
     ;;
+  production)
+    if [ -f .cursor/mcp.json.production ]; then
+        cp .cursor/mcp.json.production .cursor/mcp.json
+        echo "✅ MCP環境をProductionに切り替えました"
+        echo "   PROJECT_REF: atkhwwqunwmpzqkgavtx"
+    else
+        echo "❌ .cursor/mcp.json.production が見つかりません"
+        exit 1
+    fi
+    ;;
   dev)
     if [ -f .cursor/mcp.json.dev ]; then
         cp .cursor/mcp.json.dev .cursor/mcp.json
@@ -47,7 +57,7 @@ case $ENV in
     ;;
   *)
     echo "❌ 無効な環境: $ENV"
-    echo "   使用可能な環境: staging, dev"
+    echo "   使用可能な環境: staging, production, dev"
     exit 1
     ;;
 esac

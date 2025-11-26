@@ -3,8 +3,6 @@
 # Production環境用設定ファイルのテンプレート
 # このファイルをコピーして config.production.toml を作成してください
 
-project_id = "atkhwwqunwmpzqkgavtx"
-
 [api]
 enabled = true
 port = 54321
@@ -28,7 +26,7 @@ enable_confirmations = true
 [db]
 port = 54323
 shadow_port = 54324
-major_version = 17
+major_version = 15
 
 [realtime]
 enabled = true
@@ -39,25 +37,27 @@ port = 54326
 
 [storage]
 enabled = true
-file_size_limit = "50MiB"
+port = 54327
 
-# Image transformation API is available to Supabase Pro plan.
 [storage.image_transformation]
 enabled = true
 
-[edge_runtime]
+[edge_functions]
 enabled = true
-policy = "per_worker"
-inspector_port = 8083
-deno_version = 2
+port = 54328
 
 [analytics]
 enabled = true
-port = 54327
-backend = "postgres"
+port = 54329
 
 [inbucket]
 enabled = true
 port = 54324
 smtp_port = 54325
 pop3_port = 54326
+
+[assets]
+enabled = true
+port = 54330
+
+project_id = "atkhwwqunwmpzqkgavtx"
