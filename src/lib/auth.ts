@@ -39,27 +39,27 @@ export const updateToInfluencer = async (
 export const registerUser = async (
   authUser: AuthUser
 ): Promise<User> => {
-  console.log('🆕 ユーザー登録開始:', {
+  console.log('🆕 registerUser関数開始:', {
     authUserId: authUser.id,
     email: authUser.email,
     metadata: authUser.user_metadata
   });
-  
-  const displayName = authUser.user_metadata?.display_name || 
+
+  const displayName = authUser.user_metadata?.display_name ||
                      authUser.user_metadata?.full_name ||
-                     authUser.email?.split('@')[0] || 
+                     authUser.email?.split('@')[0] ||
                      'Unnamed User';
-  
-  const profileImageUrl = authUser.user_metadata?.avatar_url || 
-                        authUser.user_metadata?.picture || 
+
+  const profileImageUrl = authUser.user_metadata?.avatar_url ||
+                        authUser.user_metadata?.picture ||
                         null;
-  
-  console.log('📝 登録データ:', {
+
+  console.log('📝 計算された登録データ:', {
     displayName,
     profileImageUrl,
     email: authUser.email
   });
-  
+
   const insertData = {
     auth_user_id: authUser.id,
     display_name: displayName,
@@ -67,21 +67,28 @@ export const registerUser = async (
     is_fan: true,
     is_influencer: false,
   };
-  
-  console.log('📝 データベースに挿入するデータ:', insertData);
-  
+
+  console.log('📝 SupabaseにINSERT実行:', insertData);
+
   const { data, error } = await supabase
     .from('users')
     .insert(insertData)
     .select()
     .single();
-  
+
   if (error) {
-    console.error('❌ ユーザー登録エラー:', error);
+    console.error('❌ Supabase INSERTエラー:', {
+      error,
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint
+    });
     throw error;
   }
-  
-  console.log('✅ ユーザー登録成功:', {
+
+  console.log('✅ Supabase INSERT成功:', {
+    returnedData: data,
     id: data.id,
     is_fan: data.is_fan,
     is_influencer: data.is_influencer,

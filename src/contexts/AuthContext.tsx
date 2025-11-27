@@ -49,11 +49,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('🔄 認証状態変化:', { event, session });
+      console.log('🔄 認証状態変化:', {
+        event,
+        hasSession: !!session,
+        hasUser: !!session?.user,
+        userId: session?.user?.id,
+        userEmail: session?.user?.email
+      });
       setUser(session?.user ?? null);
       if (session?.user) {
+        console.log('🔄 セッションあり - syncUserを呼び出し');
         syncUser(session.user);
       } else {
+        console.log('🔄 セッションなし - 状態をクリア');
         setSupabaseUser(null);
         setUserType(null);
         setIsLoading(false);
@@ -65,33 +73,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const syncUser = async (authUser: AuthUser) => {
     try {
-      setIsLoading(true);
-      console.log('🔄 ユーザー同期開始:', {
+      console.log('🔄 syncUser関数開始:', {
         authUserId: authUser.id,
         email: authUser.email,
-        metadata: authUser.user_metadata
+        metadata: authUser.user_metadata,
+        created_at: authUser.created_at
       });
+      setIsLoading(true);
 
       // Supabaseでユーザー情報を取得
+      console.log('🔍 getSupabaseUserを呼び出し...');
       let user = await getSupabaseUser(authUser.id);
+      console.log('🔍 getSupabaseUser結果:', { userFound: !!user, userId: user?.id });
 
       if (!user) {
         // 初回ログイン - デフォルトでファンとして登録
-        console.log('🆕 新規ユーザー - usersテーブルに登録します（デフォルト: ファン）');
+        console.log('🆕 新規ユーザー検出 - registerUserを呼び出し');
         try {
           user = await registerUser(authUser);
-          console.log('✅ ユーザー登録成功:', {
+          console.log('✅ registerUser成功:', {
             user_id: user.id,
             display_name: user.display_name,
             is_fan: user.is_fan,
             is_influencer: user.is_influencer
           });
         } catch (registerError) {
-          console.error('❌ ユーザー登録エラー:', registerError);
+          console.error('❌ registerUser失敗:', registerError);
           throw registerError;
         }
       } else {
-        console.log('✅ usersテーブルからユーザー情報を取得済み:', {
+        console.log('✅ 既存ユーザー確認:', {
           user_id: user.id,
           display_name: user.display_name,
           is_fan: user.is_fan,
