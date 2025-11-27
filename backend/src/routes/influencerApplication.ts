@@ -80,23 +80,17 @@ UPDATE users SET is_influencer = true WHERE id = '${userId}';
     console.log(`SNSアカウント:`, snsLinks);
     console.log('=== 申請処理完了 ===');
 
-    // メール送信（SMTP_PASSが設定されていない場合はログ出力にフォールバック）
-    if (!process.env.SMTP_PASS || process.env.SMTP_PASS.trim() === '') {
-      console.log('=== SMTP_PASS未設定のためメール送信をスキップ ===');
-      console.log('申請内容はログに出力されています');
-      console.log('SMTP_PASSを設定するには: heroku config:set SMTP_PASS="your-password" --app oshicall-production');
-    } else {
-      const mailOptions = {
-        from: process.env.SMTP_FROM || 'OshiTalk <info@oshi-talk.com>',
-        to: 'info@style-elements.jp',
-        subject: `【OshiTalk】新規インフルエンサー申請 - ${realName}`,
-        text: emailBody,
-        replyTo: email, // 申請者のメールアドレスに返信可能
-      };
+    // メール送信
+    const mailOptions = {
+      from: process.env.SMTP_FROM || 'OshiTalk <info@oshi-talk.com>',
+      to: 'info@style-elements.jp',
+      subject: `【OshiTalk】新規インフルエンサー申請 - ${realName}`,
+      text: emailBody,
+      replyTo: email, // 申請者のメールアドレスに返信可能
+    };
 
-      await transporter.sendMail(mailOptions);
-      console.log(`インフルエンサー申請メール送信成功: ${realName} (${email})`);
-    }
+    await transporter.sendMail(mailOptions);
+    console.log(`インフルエンサー申請メール送信成功: ${realName} (${email})`);
 
     console.log(`インフルエンサー申請メール送信成功: ${realName} (${email})`);
 
