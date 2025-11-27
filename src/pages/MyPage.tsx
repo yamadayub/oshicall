@@ -1114,7 +1114,18 @@ export default function MyPage() {
             {user?.email && (
               <p className="text-xs text-gray-600 truncate">{user.email}</p>
             )}
-            
+
+            {/* ロール切り替えボタン */}
+            <div className="mt-3">
+              <button
+                onClick={() => setShowRoleSelection(true)}
+                className="inline-flex items-center space-x-2 px-3 py-1 bg-gradient-to-r from-pink-500 to-purple-600 text-white text-xs font-medium rounded-full hover:from-pink-600 hover:to-purple-700 transition-all duration-200 shadow-sm"
+              >
+                <Sparkles className="h-3 w-3" />
+                <span>利用タイプを変更</span>
+              </button>
+            </div>
+
             {/* 統計情報 - スッキリ版 */}
             {(
               <div className="flex space-x-8 mt-4">
