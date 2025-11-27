@@ -767,10 +767,16 @@ export default function MyPage() {
       if (dbError) throw dbError;
 
       // バックエンドにメール送信リクエスト
+      // emailが取得できない場合はエラー
+      if (!supabaseUser.email || supabaseUser.email.trim() === '') {
+        alert('メールアドレスが取得できません。再度ログインし直してください。');
+        return;
+      }
+
       const requestData = {
         userId: supabaseUser.id,
         displayName: supabaseUser.display_name,
-        email: supabaseUser.email || '',
+        email: supabaseUser.email,
         realName: applicationForm.realName,
         affiliation: applicationForm.affiliation,
         snsLinks: validSnsLinks

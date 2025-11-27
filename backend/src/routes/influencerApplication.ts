@@ -21,7 +21,7 @@ router.post('/send-influencer-application', async (req: Request, res: Response) 
     console.log('Parsed data:', { userId, displayName, email, realName, affiliation, snsLinks });
 
     // バリデーション
-    if (!userId || !email || !realName || !affiliation || !snsLinks) {
+    if (!userId || !email || email.trim() === '' || !realName || !affiliation || !snsLinks) {
       console.log('バリデーションエラー: 必須項目不足');
       return res.status(400).json({ error: '必須項目が不足しています' });
     }
