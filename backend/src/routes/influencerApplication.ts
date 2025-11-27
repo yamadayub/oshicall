@@ -80,16 +80,16 @@ UPDATE users SET is_influencer = true WHERE id = '${userId}';
     console.log(`SNSアカウント:`, snsLinks);
     console.log('=== 申請処理完了 ===');
 
-    // メール送信を一時的にスキップ
-    // const mailOptions = {
-    //   from: process.env.SMTP_FROM || 'OshiTalk <info@oshi-talk.com>',
-    //   to: 'info@style-elements.com',
-    //   subject: `【OshiTalk】新規インフルエンサー申請 - ${realName}`,
-    //   text: emailBody,
-    //   replyTo: email, // 申請者のメールアドレスに返信可能
-    // };
+    // メール送信
+    const mailOptions = {
+      from: process.env.SMTP_FROM || 'OshiTalk <info@oshi-talk.com>',
+      to: 'info@style-elements.jp',
+      subject: `【OshiTalk】新規インフルエンサー申請 - ${realName}`,
+      text: emailBody,
+      replyTo: email, // 申請者のメールアドレスに返信可能
+    };
 
-    // await transporter.sendMail(mailOptions);
+    await transporter.sendMail(mailOptions);
 
     console.log(`インフルエンサー申請メール送信成功: ${realName} (${email})`);
 
