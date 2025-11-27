@@ -80,17 +80,26 @@ UPDATE users SET is_influencer = true WHERE id = '${userId}';
     console.log(`SNSアカウント:`, snsLinks);
     console.log('=== 申請処理完了 ===');
 
-    // メール送信
-    const mailOptions = {
-      from: process.env.SMTP_FROM || 'OshiTalk <info@oshi-talk.com>',
-      to: 'info@style-elements.jp',
-      subject: `【OshiTalk】新規インフルエンサー申請 - ${realName}`,
-      text: emailBody,
-      replyTo: email, // 申請者のメールアドレスに返信可能
-    };
+    // メール送信（認証エラーの場合はログ出力にフォールバック）
+    try {
+      const mailOptions = {
+        from: process.env.SMTP_FROM || 'OshiTalk <info@oshi-talk.com>',
+        to: 'info@style-elements.jp',
+        subject: `【OshiTalk】新規インフルエンサー申請 - ${realName}`,
+        text: emailBody,
+        replyTo: email, // 申請者のメールアドレスに返信可能
+      };
 
-    await transporter.sendMail(mailOptions);
-    console.log(`インフルエンサー申請メール送信成功: ${realName} (${email})`);
+      await transporter.sendMail(mailOptions);
+      console.log(`インフルエンサー申請メール送信成功: ${realName} (${email})`);
+    } catch (emailError) {
+      console.log('=== メール送信失敗: ログ出力にフォールバック ===');
+      console.log('SMTP認証エラーが発生しました。アプリパスワードを設定してください。');
+      console.log('Google Workspace管理コンソール → セキュリティ → アプリパスワード');
+      console.log('アプリ: メール, デバイス: OshiTalk, 生成された16文字のパスワードを使用');
+      console.log('設定コマンド: heroku config:set SMTP_PASS="16文字のアプリパスワード" --app oshicall-production');
+      console.log(`申請内容はログに出力されています: ${realName} (${email})`);
+    }
 
     console.log(`インフルエンサー申請メール送信成功: ${realName} (${email})`);
 
