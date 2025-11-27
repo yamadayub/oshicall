@@ -770,7 +770,7 @@ export default function MyPage() {
       const requestData = {
         userId: supabaseUser.id,
         displayName: supabaseUser.display_name,
-        email: supabaseUser.email,
+        email: supabaseUser.email || '',
         realName: applicationForm.realName,
         affiliation: applicationForm.affiliation,
         snsLinks: validSnsLinks
