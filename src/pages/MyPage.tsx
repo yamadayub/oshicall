@@ -767,20 +767,29 @@ export default function MyPage() {
       if (dbError) throw dbError;
 
       // バックエンドにメール送信リクエスト
+      const requestData = {
+        userId: supabaseUser.id,
+        displayName: supabaseUser.display_name,
+        email: supabaseUser.email,
+        realName: applicationForm.realName,
+        affiliation: applicationForm.affiliation,
+        snsLinks: validSnsLinks
+      };
+
+      console.log('=== フロントエンド送信データ ===');
+      console.log('Request URL:', `${import.meta.env.VITE_BACKEND_URL || ''}/api/send-influencer-application`);
+      console.log('Request data:', requestData);
+
       const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || ''}/api/send-influencer-application`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          userId: supabaseUser.id,
-          displayName: supabaseUser.display_name,
-          email: supabaseUser.email,
-          realName: applicationForm.realName,
-          affiliation: applicationForm.affiliation,
-          snsLinks: validSnsLinks
-        })
+        body: JSON.stringify(requestData)
       });
+
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
 
       if (!response.ok) {
         throw new Error('メール送信に失敗しました');

@@ -6,6 +6,9 @@ const router = Router();
 // インフルエンサー申請メール送信
 router.post('/send-influencer-application', async (req: Request, res: Response) => {
   try {
+    console.log('=== インフルエンサー申請APIリクエスト受信 ===');
+    console.log('Request body:', req.body);
+
     const {
       userId,
       displayName,
@@ -15,14 +18,20 @@ router.post('/send-influencer-application', async (req: Request, res: Response) 
       snsLinks
     } = req.body;
 
+    console.log('Parsed data:', { userId, displayName, email, realName, affiliation, snsLinks });
+
     // バリデーション
     if (!userId || !email || !realName || !affiliation || !snsLinks) {
+      console.log('バリデーションエラー: 必須項目不足');
       return res.status(400).json({ error: '必須項目が不足しています' });
     }
 
     if (!Array.isArray(snsLinks) || snsLinks.length === 0) {
+      console.log('バリデーションエラー: SNSリンクなし');
       return res.status(400).json({ error: 'SNSリンクが必要です' });
     }
+
+    console.log('バリデーション通過');
 
     // メール本文を作成
     const snsLinksText = snsLinks.map((link, index) => `${index + 1}. ${link}`).join('\n');
