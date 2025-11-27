@@ -756,11 +756,10 @@ export default function MyPage() {
       setSaving(true);
       setError('');
 
-      // データベースに申請ステータスを保存
+      // データベースに申請情報を保存
       const { error: dbError } = await supabase
         .from('users')
         .update({
-          influencer_application_status: 'pending',
           bio: `${applicationForm.realName} | ${applicationForm.affiliation}`
         })
         .eq('id', supabaseUser.id);
