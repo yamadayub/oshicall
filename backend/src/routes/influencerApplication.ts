@@ -44,10 +44,10 @@ ${snsLinksText}
 管理画面でユーザーを確認: https://wioealhsienyubwegvdu.supabase.co/project/wioealhsienyubwegvdu/editor
 
 承認する場合は、以下のSQLを実行してください：
-UPDATE users SET is_influencer = true, influencer_application_status = 'approved' WHERE id = '${userId}';
+UPDATE users SET is_influencer = true WHERE id = '${userId}';
 
 却下する場合は、以下のSQLを実行してください：
-UPDATE users SET influencer_application_status = 'rejected' WHERE id = '${userId}';
+-- 却下の場合は特に何もする必要はありません（デフォルトでis_influencer = falseのまま）
     `.trim();
 
     // トランスポーターを作成
