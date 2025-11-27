@@ -767,8 +767,12 @@ export default function MyPage() {
       if (dbError) throw dbError;
 
       // バックエンドにメール送信リクエスト
+      // Supabase Authからemailを取得
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      const userEmail = authUser?.email;
+
       // emailが取得できない場合はエラー
-      if (!supabaseUser.email || supabaseUser.email.trim() === '') {
+      if (!userEmail || userEmail.trim() === '') {
         alert('メールアドレスが取得できません。再度ログインし直してください。');
         return;
       }
@@ -776,7 +780,7 @@ export default function MyPage() {
       const requestData = {
         userId: supabaseUser.id,
         displayName: supabaseUser.display_name,
-        email: supabaseUser.email,
+        email: userEmail,
         realName: applicationForm.realName,
         affiliation: applicationForm.affiliation,
         snsLinks: validSnsLinks
