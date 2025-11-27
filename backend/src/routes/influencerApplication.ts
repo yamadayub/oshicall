@@ -85,7 +85,7 @@ UPDATE users SET is_influencer = true WHERE id = '${userId}';
     try {
       const mailOptions = {
         from: `OshiTalk <${process.env.SMTP_USER}>`,
-        to: 'info@style-elements.jp',
+        to: 'yamadayub@gmail.com', // テスト用にユーザーのGmailに送信
         subject: `【OshiTalk】新規インフルエンサー申請 - ${realName}`,
         text: emailBody,
         replyTo: email, // 申請者のメールアドレスに返信可能
