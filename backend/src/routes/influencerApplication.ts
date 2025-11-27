@@ -91,8 +91,15 @@ UPDATE users SET is_influencer = true WHERE id = '${userId}';
         replyTo: email, // 申請者のメールアドレスに返信可能
       };
 
-      await transporter.sendMail(mailOptions);
+      const result = await transporter.sendMail(mailOptions);
       console.log(`インフルエンサー申請メール送信成功: ${realName} (${email})`);
+      console.log(`メール送信詳細:`, {
+        messageId: result.messageId,
+        envelope: result.envelope,
+        accepted: result.accepted,
+        rejected: result.rejected,
+        pending: result.pending
+      });
       emailSent = true;
     } catch (emailError) {
       console.log('=== メール送信失敗: ログ出力にフォールバック ===');
