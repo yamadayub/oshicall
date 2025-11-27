@@ -207,7 +207,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // 環境に応じたリダイレクトURLを取得
       // 環境に応じたリダイレクトURLを取得
       const getRedirectUrl = () => {
-        const origin = window.location.origin;
+        const origin = window.location?.origin;
+
+        // originがundefinedの場合はデフォルト値を返す
+        if (!origin) {
+          console.warn('⚠️ window.location.origin が取得できませんでした');
+          return 'https://oshi-talk.com'; // Production環境のデフォルト
+        }
 
         // 本番環境（カスタムドメイン）
         if (origin === 'https://oshi-talk.com' || origin.includes('oshi-talk.com')) {
@@ -220,7 +226,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Herokuドメイン（フォールバック）
-        if (origin.includes('herokuapp.com')) {
+        if (origin.includes && origin.includes('herokuapp.com')) {
           // 末尾のスラッシュを削除
           return origin.endsWith('/') ? origin.slice(0, -1) : origin;
         }
