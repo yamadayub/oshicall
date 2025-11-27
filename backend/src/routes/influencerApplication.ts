@@ -16,7 +16,7 @@ router.post('/send-influencer-application', async (req: Request, res: Response) 
     } = req.body;
 
     // バリデーション
-    if (!userId || !displayName || !email || !realName || !affiliation || !snsLinks) {
+    if (!userId || !email || !realName || !affiliation || !snsLinks) {
       return res.status(400).json({ error: '必須項目が不足しています' });
     }
 
