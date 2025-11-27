@@ -83,15 +83,19 @@ const corsMiddleware = cors({
 app.use('/api', corsMiddleware);
 app.use('/health', corsMiddleware);
 
-// CSP ヘッダーを設定
+// CSP ヘッダーを設定（環境に応じてSupabase URLを変更）
 app.use((req, res, next) => {
+  // 環境に応じたSupabase URLを設定
+  const supabaseUrl = process.env.SUPABASE_URL || 'https://atkhwwqunwmpzqkgavtx.supabase.co';
+  const supabaseDomain = supabaseUrl.replace('https://', '').split('.')[0];
+
   res.setHeader('Content-Security-Policy',
     "default-src 'self'; " +
     "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.stripe.com https://*.daily.co; " +
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
     "font-src 'self' https://fonts.gstatic.com; " +
     "img-src 'self' data: https: blob:; " +
-    "connect-src 'self' https://wioealhsienyubwegvdu.supabase.co https://api.stripe.com https://*.daily.co wss://*.daily.co; " +
+    `connect-src 'self' https://${supabaseDomain}.supabase.co https://api.stripe.com https://*.daily.co wss://*.daily.co; ` +
     "frame-src 'self' https://js.stripe.com https://*.daily.co; " +
     "object-src 'none'; " +
     "base-uri 'self'; " +
