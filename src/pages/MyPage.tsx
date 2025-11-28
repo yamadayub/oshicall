@@ -1119,10 +1119,10 @@ export default function MyPage() {
                   ) : (
                     <button
                       onClick={() => setIsEditingProfile(true)}
-                      className="bg-blue-500 text-white px-4 py-2 text-sm rounded-lg hover:bg-blue-600 transition-colors flex items-center space-x-2 shadow-sm"
+                      className="bg-blue-500 text-white p-2 text-sm rounded-lg hover:bg-blue-600 transition-colors shadow-sm"
+                      title="プロフィールを編集"
                     >
-                      <EditIcon className="h-3 w-3" />
-                      <span>編集</span>
+                      <EditIcon className="h-4 w-4" />
                     </button>
                   )}
                 </>
