@@ -181,26 +181,15 @@ export default function Layout({ children, onNavigate }: LayoutProps) {
                   )}
                 </div>
               ) : (
-                <div className="flex space-x-2">
-                  <button 
-                    onClick={() => {
-                      setAuthMode('signin');
-                      setAuthModalOpen(true);
-                    }}
-                    className="px-4 py-2 text-sm font-medium text-pink-600 hover:text-pink-700 transition-colors"
-                  >
-                    ログイン
-                  </button>
-                  <button 
-                    onClick={() => {
-                      setAuthMode('signup');
-                      setAuthModalOpen(true);
-                    }}
-                    className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-lg hover:from-pink-600 hover:to-purple-700 transition-all duration-200 shadow-md"
-                  >
-                    新規登録
-                  </button>
-                </div>
+                <button
+                  onClick={() => {
+                    setAuthMode('signin');
+                    setAuthModalOpen(true);
+                  }}
+                  className="px-6 py-2 text-sm font-medium bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-lg hover:from-pink-600 hover:to-purple-700 transition-all duration-200 shadow-md"
+                >
+                  ログイン
+                </button>
               )}
             </div>
           </div>
