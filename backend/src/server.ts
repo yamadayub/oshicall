@@ -571,6 +571,9 @@ app.post('/api/stripe/create-connect-account', async (req: Request, res: Respons
     const account = await stripe.accounts.create({
       type: 'express',
       email,
+      business_profile: {
+        name: '推しトーク',
+      },
       capabilities: {
         transfers: { requested: true },
       },
@@ -820,6 +823,9 @@ app.post('/api/stripe/create-or-resume-onboarding', async (req: Request, res: Re
       const account = await stripe.accounts.create({
         type: 'express',
         email,
+        business_profile: {
+          name: '推しトーク',
+        },
         capabilities: {
           transfers: { requested: true },
         },
