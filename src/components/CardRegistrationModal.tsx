@@ -69,7 +69,8 @@ function CardRegistrationForm({ onClose, onSuccess }: Omit<CardRegistrationModal
 
       if (setupIntent.status === 'succeeded') {
         // 4. デフォルト支払い方法として設定
-        const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+        const { getBackendUrl } = await import('../lib/backend');
+        const backendUrl = getBackendUrl();
         await fetch(`${backendUrl}/api/stripe/set-default-payment-method`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

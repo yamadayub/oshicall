@@ -37,6 +37,7 @@ import { getUserBadges, getAvailableBadges } from '../api/userBadges';
 import { getUserActivity } from '../api/userActivity';
 import { getUserCollection, getInfluencerCollection } from '../api/userCollection';
 import { validateImageFile, getImagePreviewUrl } from '../lib/storage';
+import { getBackendUrl } from '../lib/backend';
 import { createConnectAccount, getInfluencerStripeStatus, createOrResumeOnboarding } from '../api/stripe';
 import { supabase } from '../lib/supabase';
 import CreateCallSlotForm from '../components/CreateCallSlotForm';
@@ -570,10 +571,10 @@ export default function MyPage() {
       }
 
       // バックエンドAPIを呼び出してTalk枠とオークション情報を一括更新
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+      const backendUrl = getBackendUrl();
       
       if (!backendUrl) {
-        throw new Error('バックエンドURLが設定されていません。環境変数VITE_BACKEND_URLを確認してください。');
+        throw new Error('バックエンドURLが設定されていません。環境変数VITE_BACKEND_URLを設定するか、開発環境ではバックエンドサーバーを起動してください。');
       }
 
       if (!supabaseUser?.auth_user_id) {
@@ -866,10 +867,11 @@ export default function MyPage() {
       };
 
       console.log('=== フロントエンド送信データ ===');
-      console.log('Request URL:', `${import.meta.env.VITE_BACKEND_URL || ''}/api/send-influencer-application`);
+      const backendUrl = getBackendUrl();
+      console.log('Request URL:', `${backendUrl}/api/send-influencer-application`);
       console.log('Request data:', requestData);
 
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || ''}/api/send-influencer-application`, {
+      const response = await fetch(`${backendUrl}/api/send-influencer-application`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

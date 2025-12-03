@@ -1,5 +1,6 @@
 // 通話API関数
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || '';
+import { getBackendUrl } from '../lib/backend';
+const API_BASE_URL = getBackendUrl();
 
 export interface CreateRoomResponse {
   success: boolean;

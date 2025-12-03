@@ -1,6 +1,6 @@
 // バックエンドAPIのベースURL
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 
-  (import.meta.env.PROD ? '' : 'http://localhost:3001');
+import { getBackendUrl } from '../lib/backend';
+const API_BASE_URL = getBackendUrl();
 
 // デバッグ情報を出力
 console.log('🔍 API設定:', {

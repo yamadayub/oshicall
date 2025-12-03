@@ -121,7 +121,9 @@ export default function CallWaitingRoom({
 
     try {
       // 通話開始時に参加情報を記録
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || ''}/api/calls/join-room`, {
+      const { getBackendUrl } = await import('../../lib/backend');
+      const backendUrl = getBackendUrl();
+      const response = await fetch(`${backendUrl}/api/calls/join-room`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ purchasedSlotId, userId }),

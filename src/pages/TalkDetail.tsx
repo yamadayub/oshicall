@@ -407,7 +407,8 @@ export default function TalkDetail() {
 
     try {
       // 与信確保API呼び出し
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+      const { getBackendUrl } = await import('../lib/backend');
+      const backendUrl = getBackendUrl();
       const response = await fetch(`${backendUrl}/api/stripe/authorize-payment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -499,7 +500,8 @@ export default function TalkDetail() {
         throw new Error('顧客情報が見つかりません');
       }
 
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+      const { getBackendUrl } = await import('../lib/backend');
+      const backendUrl = getBackendUrl();
       const response = await fetch(`${backendUrl}/api/stripe/authorize-payment`, {
         method: 'POST',
         headers: {
