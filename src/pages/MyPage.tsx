@@ -559,9 +559,19 @@ export default function MyPage() {
         });
       }
 
-      // Call Slotを更新
-      const { updateCallSlot } = await import('../api/callSlots');
-      console.log('📤 Call Slot更新リクエスト:', {
+      // datetime-local形式をUTC形式に変換（オークション終了時間）
+      let auctionEndTimeUTC: string | undefined;
+      if (editForm.auction_end_time) {
+        auctionEndTimeUTC = editForm.auction_end_time;
+        if (!auctionEndTimeUTC.includes('Z') && !auctionEndTimeUTC.includes('+')) {
+          const localDate = new Date(auctionEndTimeUTC);
+          auctionEndTimeUTC = localDate.toISOString();
+        }
+      }
+
+      // バックエンドAPIを呼び出してTalk枠とオークション情報を一括更新
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+      console.log('📤 Talk枠更新リクエスト:', {
         id: editingCallSlot.id,
         updates: {
           title: editForm.title,
@@ -572,49 +582,37 @@ export default function MyPage() {
           minimum_bid_increment: editForm.minimum_bid_increment,
           buy_now_price: editHasBuyNowPrice ? editForm.buy_now_price : null,
           thumbnail_url: thumbnailUrl,
+          auction_end_time: auctionEndTimeUTC,
         }
       });
 
-      const updatedSlot = await updateCallSlot(editingCallSlot.id, {
-        title: editForm.title,
-        description: editForm.description,
-        scheduled_start_time: scheduledStartTimeUTC,
-        duration_minutes: editForm.duration_minutes,
-        starting_price: editForm.starting_price,
-        minimum_bid_increment: editForm.minimum_bid_increment,
-        buy_now_price: editHasBuyNowPrice ? editForm.buy_now_price : null,
-        thumbnail_url: thumbnailUrl,
+      const response = await fetch(`${backendUrl}/api/call-slots/${editingCallSlot.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          authUserId: supabaseUser?.auth_user_id,
+          title: editForm.title,
+          description: editForm.description,
+          scheduled_start_time: scheduledStartTimeUTC,
+          duration_minutes: editForm.duration_minutes,
+          starting_price: editForm.starting_price,
+          minimum_bid_increment: editForm.minimum_bid_increment,
+          buy_now_price: editHasBuyNowPrice ? editForm.buy_now_price : null,
+          thumbnail_url: thumbnailUrl,
+          auction_end_time: auctionEndTimeUTC,
+        }),
       });
 
-      console.log('✅ Call Slot更新成功:', updatedSlot);
-
-      // オークション終了時間を更新（変更されている場合）
-      if (editForm.auction_end_time && editForm.auction_end_time !== editingCallSlot.auction_end_time?.slice(0, 16)) {
-        const { supabase } = await import('../lib/supabase');
-        if (editingCallSlot.auction_id) {
-          // datetime-local形式をUTC形式に変換
-          let auctionEndTimeUTC = editForm.auction_end_time;
-          if (!auctionEndTimeUTC.includes('Z') && !auctionEndTimeUTC.includes('+')) {
-            const localDate = new Date(auctionEndTimeUTC);
-            auctionEndTimeUTC = localDate.toISOString();
-          }
-
-          console.log('📤 オークション終了時間更新:', {
-            auction_id: editingCallSlot.auction_id,
-            new_end_time: auctionEndTimeUTC
-          });
-
-          const { error } = await supabase.rpc('update_auction_end_time', {
-            p_auction_id: editingCallSlot.auction_id,
-            p_new_end_time: auctionEndTimeUTC
-          });
-          if (error) {
-            console.error('❌ オークション終了時間更新エラー:', error);
-            throw error;
-          }
-          console.log('✅ オークション終了時間更新成功');
-        }
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('❌ Talk枠更新エラー:', errorData);
+        throw new Error(errorData.error || 'Talk枠の更新に失敗しました');
       }
+
+      const result = await response.json();
+      console.log('✅ Talk枠更新成功:', result);
 
       setSuccessMessage('Talk枠を更新しました');
       setTimeout(() => setSuccessMessage(''), 3000);

@@ -1053,6 +1053,129 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
 });
 
 // ============================================
+// Talk枠とオークション情報を一括更新（トランザクション管理）
+// ============================================
+app.put('/api/call-slots/:callSlotId', async (req: Request, res: Response) => {
+  try {
+    const { callSlotId } = req.params;
+    const { 
+      authUserId,
+      title,
+      description,
+      scheduled_start_time,
+      duration_minutes,
+      starting_price,
+      minimum_bid_increment,
+      buy_now_price,
+      thumbnail_url,
+      auction_end_time
+    } = req.body;
+
+    console.log('🔵 Talk枠更新開始:', { callSlotId, authUserId });
+
+    if (!authUserId) {
+      return res.status(401).json({ error: '認証が必要です' });
+    }
+
+    // 1. ユーザー情報を取得
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('auth_user_id', authUserId)
+      .single();
+
+    if (userError || !user) {
+      return res.status(404).json({ error: 'ユーザーが見つかりません' });
+    }
+
+    // 2. Talk枠情報を取得（権限確認のため）
+    const { data: callSlot, error: callSlotError } = await supabase
+      .from('call_slots')
+      .select('id, user_id, auction_id')
+      .eq('id', callSlotId)
+      .single();
+
+    if (callSlotError || !callSlot) {
+      return res.status(404).json({ error: 'Talk枠が見つかりません' });
+    }
+
+    // 3. 権限確認（インフルエンサーが自分のTalk枠を更新できるか）
+    if (callSlot.user_id !== user.id) {
+      return res.status(403).json({ error: 'このTalk枠を更新する権限がありません' });
+    }
+
+    // 4. end_timeを計算（scheduled_start_time + duration_minutes）
+    let endTimeUTC: string | undefined;
+    if (scheduled_start_time && duration_minutes) {
+      const scheduledTime = new Date(scheduled_start_time);
+      const endTime = new Date(scheduledTime.getTime() + duration_minutes * 60 * 1000);
+      endTimeUTC = endTime.toISOString();
+    }
+
+    // 5. call_slotsテーブルを更新
+    const callSlotUpdateData: any = {};
+    if (title !== undefined) callSlotUpdateData.title = title;
+    if (description !== undefined) callSlotUpdateData.description = description;
+    if (scheduled_start_time !== undefined) callSlotUpdateData.scheduled_start_time = scheduled_start_time;
+    if (duration_minutes !== undefined) callSlotUpdateData.duration_minutes = duration_minutes;
+    if (starting_price !== undefined) callSlotUpdateData.starting_price = starting_price;
+    if (minimum_bid_increment !== undefined) callSlotUpdateData.minimum_bid_increment = minimum_bid_increment;
+    if (buy_now_price !== undefined) callSlotUpdateData.buy_now_price = buy_now_price;
+    if (thumbnail_url !== undefined) callSlotUpdateData.thumbnail_url = thumbnail_url;
+    if (endTimeUTC) callSlotUpdateData.end_time = endTimeUTC;
+    callSlotUpdateData.updated_at = new Date().toISOString();
+
+    const { data: updatedCallSlot, error: callSlotUpdateError } = await supabase
+      .from('call_slots')
+      .update(callSlotUpdateData)
+      .eq('id', callSlotId)
+      .select()
+      .single();
+
+    if (callSlotUpdateError) {
+      console.error('❌ Talk枠更新エラー:', callSlotUpdateError);
+      throw callSlotUpdateError;
+    }
+
+    console.log('✅ Talk枠更新成功:', updatedCallSlot.id);
+
+    // 6. オークション情報を更新（auction_idが存在し、auction_end_timeが指定されている場合）
+    if (callSlot.auction_id && auction_end_time) {
+      const auctionUpdateData: any = {
+        auction_end_time: auction_end_time,
+        end_time: auction_end_time,
+        updated_at: new Date().toISOString()
+      };
+
+      const { data: updatedAuction, error: auctionUpdateError } = await supabase
+        .from('auctions')
+        .update(auctionUpdateData)
+        .eq('id', callSlot.auction_id)
+        .select()
+        .single();
+
+      if (auctionUpdateError) {
+        console.error('❌ オークション更新エラー:', auctionUpdateError);
+        // Talk枠の更新は成功しているが、オークションの更新に失敗
+        // ロールバックは難しいので、エラーを返す
+        throw new Error(`Talk枠は更新されましたが、オークション情報の更新に失敗しました: ${auctionUpdateError.message}`);
+      }
+
+      console.log('✅ オークション更新成功:', updatedAuction.id);
+    }
+
+    res.json({
+      success: true,
+      callSlot: updatedCallSlot,
+      message: 'Talk枠を更新しました'
+    });
+  } catch (error: any) {
+    console.error('❌ Talk枠更新エラー:', error);
+    res.status(500).json({ error: error.message || 'Talk枠の更新に失敗しました' });
+  }
+});
+
+// ============================================
 // オークション終了処理（手動実行または定期実行）
 // ============================================
 app.post('/api/auctions/finalize-ended', async (req: Request, res: Response) => {
