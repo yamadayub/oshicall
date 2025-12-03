@@ -23,8 +23,15 @@ export const createCallSlot = async (
   const scheduledTimeUTC = input.scheduled_start_time;
   const auctionEndTimeUTC = input.auction_end_time;
 
+  // end_timeを計算: scheduled_start_time + duration_minutes
+  const scheduledTime = new Date(scheduledTimeUTC);
+  const endTime = new Date(scheduledTime.getTime() + input.duration_minutes * 60 * 1000);
+  const endTimeUTC = endTime.toISOString();
+
   console.log('📅 Talk開始時間:', {
     scheduled_start_time: scheduledTimeUTC,
+    duration_minutes: input.duration_minutes,
+    end_time: endTimeUTC,
     auction_end_time: auctionEndTimeUTC
   });
 
@@ -37,6 +44,7 @@ export const createCallSlot = async (
       description: input.description,
       scheduled_start_time: scheduledTimeUTC, // UTC形式で保存
       duration_minutes: input.duration_minutes,
+      end_time: endTimeUTC, // scheduled_start_time + duration_minutes
       starting_price: input.starting_price,
       minimum_bid_increment: input.minimum_bid_increment,
       buy_now_price: input.buy_now_price || null,
