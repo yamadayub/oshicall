@@ -125,11 +125,11 @@ export const InfluencerEarningsDashboard: React.FC<Props> = ({ authUserId }) => 
     <div className="bg-white rounded-lg shadow-md">
       {/* ヘッダー（クリックで開閉） */}
       <div
-        className="flex justify-between items-center p-6 cursor-pointer hover:bg-gray-50 transition"
+        className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 p-4 sm:p-6 cursor-pointer hover:bg-gray-50 transition"
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex items-center space-x-2">
-          <h2 className="text-2xl font-bold text-gray-900">💰 売上サマリー</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 whitespace-nowrap">💰 売上サマリー</h2>
           <span className="text-sm text-gray-500">
             {isExpanded ? '▼' : '▶'}
           </span>
@@ -140,7 +140,7 @@ export const InfluencerEarningsDashboard: React.FC<Props> = ({ authUserId }) => 
             handleOpenStripeDashboard();
           }}
           disabled={isOpeningDashboard}
-          className="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-3 py-1.5 sm:px-4 sm:py-2 text-sm sm:text-base bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
         >
           {isOpeningDashboard ? '読み込み中...' : '詳細を見る →'}
         </button>
@@ -148,13 +148,13 @@ export const InfluencerEarningsDashboard: React.FC<Props> = ({ authUserId }) => 
 
       {/* コンテンツ（開いている時のみ表示） */}
       {isExpanded && (
-        <div className="p-6 pt-0">
+        <div className="px-4 sm:px-6 pb-6 pt-0">
 
       {/* 残高取得エラー警告 */}
       {earnings.balanceError && (
-        <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <p className="text-sm text-yellow-800">
-            <span className="font-medium">⚠️ 残高情報が取得できませんでした</span>
+        <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <p className="text-xs sm:text-sm text-yellow-800">
+            <span className="font-medium whitespace-nowrap">⚠️ 残高情報が取得できませんでした</span>
             <br />
             <span className="text-xs mt-1 block">
               テストモードのStripe Connectアカウントでは実際の残高は表示されません。
@@ -165,60 +165,60 @@ export const InfluencerEarningsDashboard: React.FC<Props> = ({ authUserId }) => 
       )}
 
       {/* サマリーカード */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
         {/* 総売上 */}
-        <div className="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-lg border border-green-200">
-          <div className="text-sm text-green-700 font-medium mb-1">総売上（受取額）</div>
-          <div className="text-3xl font-bold text-green-900">
+        <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 sm:p-6 rounded-lg border border-green-200">
+          <div className="text-xs sm:text-sm text-green-700 font-medium mb-1 whitespace-nowrap">総売上（受取額）</div>
+          <div className="text-2xl sm:text-3xl font-bold text-green-900 whitespace-nowrap overflow-hidden text-ellipsis">
             {formatCurrency(earnings.totalEarnings)}
           </div>
-          <div className="text-xs text-green-600 mt-2">
+          <div className="text-xs text-green-600 mt-2 whitespace-nowrap">
             {earnings.totalCallCount}件の通話完了
           </div>
         </div>
 
         {/* 入金予定額 */}
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-lg border border-blue-200">
-          <div className="text-sm text-blue-700 font-medium mb-1">入金予定額</div>
-          <div className="text-3xl font-bold text-blue-900">
+        <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 sm:p-6 rounded-lg border border-blue-200">
+          <div className="text-xs sm:text-sm text-blue-700 font-medium mb-1 whitespace-nowrap">入金予定額</div>
+          <div className="text-2xl sm:text-3xl font-bold text-blue-900 whitespace-nowrap overflow-hidden text-ellipsis">
             {formatCurrency(earnings.pendingBalance)}
           </div>
-          <div className="text-xs text-blue-600 mt-2">
+          <div className="text-xs text-blue-600 mt-2 whitespace-nowrap">
             通常7営業日後に入金
           </div>
         </div>
 
         {/* 入金可能額 */}
-        <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-lg border border-purple-200">
-          <div className="text-sm text-purple-700 font-medium mb-1">入金可能額</div>
-          <div className="text-3xl font-bold text-purple-900">
+        <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 sm:p-6 rounded-lg border border-purple-200">
+          <div className="text-xs sm:text-sm text-purple-700 font-medium mb-1 whitespace-nowrap">入金可能額</div>
+          <div className="text-2xl sm:text-3xl font-bold text-purple-900 whitespace-nowrap overflow-hidden text-ellipsis">
             {formatCurrency(earnings.availableBalance)}
           </div>
-          <div className="text-xs text-purple-600 mt-2">
+          <div className="text-xs text-purple-600 mt-2 whitespace-nowrap">
             即時出金可能
           </div>
         </div>
       </div>
 
       {/* 今月の売上 */}
-      <div className="mb-8">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">📊 今月の実績</h3>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <div className="text-sm text-gray-600 mb-1">今月の売上</div>
-            <div className="text-xl font-bold text-gray-900">
+      <div className="mb-6 sm:mb-8">
+        <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4 whitespace-nowrap">📊 今月の実績</h3>
+        <div className="grid grid-cols-3 gap-2 sm:gap-4">
+          <div className="bg-gray-50 p-3 sm:p-4 rounded-lg">
+            <div className="text-xs sm:text-sm text-gray-600 mb-1 whitespace-nowrap">今月の売上</div>
+            <div className="text-base sm:text-xl font-bold text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis">
               {formatCurrency(earnings.monthlyStats.currentMonth.earnings)}
             </div>
           </div>
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <div className="text-sm text-gray-600 mb-1">通話回数</div>
-            <div className="text-xl font-bold text-gray-900">
+          <div className="bg-gray-50 p-3 sm:p-4 rounded-lg">
+            <div className="text-xs sm:text-sm text-gray-600 mb-1 whitespace-nowrap">通話回数</div>
+            <div className="text-base sm:text-xl font-bold text-gray-900 whitespace-nowrap">
               {earnings.monthlyStats.currentMonth.callCount}回
             </div>
           </div>
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <div className="text-sm text-gray-600 mb-1">平均単価</div>
-            <div className="text-xl font-bold text-gray-900">
+          <div className="bg-gray-50 p-3 sm:p-4 rounded-lg">
+            <div className="text-xs sm:text-sm text-gray-600 mb-1 whitespace-nowrap">平均単価</div>
+            <div className="text-base sm:text-xl font-bold text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis">
               {formatCurrency(earnings.monthlyStats.currentMonth.averagePrice)}
             </div>
           </div>
@@ -226,7 +226,7 @@ export const InfluencerEarningsDashboard: React.FC<Props> = ({ authUserId }) => 
 
         {/* 前月比較 */}
         {earnings.monthlyStats.previousMonth.callCount > 0 && (
-          <div className="mt-4 text-sm text-gray-600">
+          <div className="mt-3 sm:mt-4 text-xs sm:text-sm text-gray-600 whitespace-nowrap overflow-hidden text-ellipsis">
             前月: {formatCurrency(earnings.monthlyStats.previousMonth.earnings)}
             （{earnings.monthlyStats.previousMonth.callCount}回）
             {earnings.monthlyStats.currentMonth.earnings > earnings.monthlyStats.previousMonth.earnings && (
@@ -240,27 +240,27 @@ export const InfluencerEarningsDashboard: React.FC<Props> = ({ authUserId }) => 
 
       {/* 直近の取引履歴 */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">📝 直近の取引</h3>
+        <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4 whitespace-nowrap">📝 直近の取引</h3>
         {earnings.recentTransactions.length === 0 ? (
-          <p className="text-gray-500 text-center py-8">まだ取引がありません</p>
+          <p className="text-gray-500 text-center py-6 sm:py-8 text-sm sm:text-base">まだ取引がありません</p>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2 sm:space-y-3">
             {earnings.recentTransactions.map((tx) => (
               <div
                 key={tx.id}
-                className="flex justify-between items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition"
+                className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-0 p-3 sm:p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition"
               >
-                <div className="flex-1">
-                  <div className="font-medium text-gray-900">{tx.talkTitle}</div>
-                  <div className="text-sm text-gray-500">
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-gray-900 text-sm sm:text-base truncate">{tx.talkTitle}</div>
+                  <div className="text-xs sm:text-sm text-gray-500 whitespace-nowrap">
                     {formatDate(tx.completedAt)}
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="font-bold text-gray-900">
+                <div className="text-left sm:text-right flex-shrink-0">
+                  <div className="font-bold text-gray-900 text-base sm:text-lg whitespace-nowrap">
                     {formatCurrency(tx.amount)}
                   </div>
-                  <div className="text-xs text-gray-500">
+                  <div className="text-xs text-gray-500 whitespace-nowrap">
                     総額: {formatCurrency(tx.grossAmount)} (手数料: {formatCurrency(tx.platformFee)})
                   </div>
                 </div>
@@ -271,10 +271,10 @@ export const InfluencerEarningsDashboard: React.FC<Props> = ({ authUserId }) => 
       </div>
 
       {/* ヘルプテキスト */}
-      <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-        <div className="text-sm text-blue-900">
-          <p className="font-medium mb-2">💡 入金について</p>
-          <ul className="list-disc list-inside space-y-1 text-blue-800">
+      <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-blue-50 rounded-lg border border-blue-200">
+        <div className="text-xs sm:text-sm text-blue-900">
+          <p className="font-medium mb-2 whitespace-nowrap">💡 入金について</p>
+          <ul className="list-disc list-inside space-y-1 text-blue-800 text-xs sm:text-sm">
             <li>毎週月曜日に前週の売上が確定します</li>
             <li>確定から7営業日後に銀行口座へ入金されます</li>
             <li>詳細な入金履歴は「詳細を見る」ボタンから確認できます</li>
