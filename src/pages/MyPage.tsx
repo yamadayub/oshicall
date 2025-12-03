@@ -571,8 +571,18 @@ export default function MyPage() {
 
       // バックエンドAPIを呼び出してTalk枠とオークション情報を一括更新
       const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+      
+      if (!backendUrl) {
+        throw new Error('バックエンドURLが設定されていません。環境変数VITE_BACKEND_URLを確認してください。');
+      }
+
+      if (!supabaseUser?.auth_user_id) {
+        throw new Error('認証情報が取得できませんでした。再度ログインしてください。');
+      }
+
       console.log('📤 Talk枠更新リクエスト:', {
         id: editingCallSlot.id,
+        backendUrl,
         updates: {
           title: editForm.title,
           description: editForm.description,
@@ -586,13 +596,16 @@ export default function MyPage() {
         }
       });
 
-      const response = await fetch(`${backendUrl}/api/call-slots/${editingCallSlot.id}`, {
+      const apiUrl = `${backendUrl}/api/call-slots/${editingCallSlot.id}`;
+      console.log('📡 API URL:', apiUrl);
+
+      const response = await fetch(apiUrl, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          authUserId: supabaseUser?.auth_user_id,
+          authUserId: supabaseUser.auth_user_id,
           title: editForm.title,
           description: editForm.description,
           scheduled_start_time: scheduledStartTimeUTC,
@@ -606,9 +619,20 @@ export default function MyPage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error('❌ Talk枠更新エラー:', errorData);
-        throw new Error(errorData.error || 'Talk枠の更新に失敗しました');
+        const errorText = await response.text();
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { error: errorText || `HTTP ${response.status}: ${response.statusText}` };
+        }
+        console.error('❌ Talk枠更新エラー:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorData,
+          errorText
+        });
+        throw new Error(errorData.error || `Talk枠の更新に失敗しました (HTTP ${response.status})`);
       }
 
       const result = await response.json();
