@@ -167,9 +167,40 @@ export const updateCallSlot = async (
   callSlotId: string,
   updates: Partial<CreateCallSlotInput>
 ): Promise<CallSlot> => {
+  // scheduled_start_timeとduration_minutesが更新される場合、end_timeも再計算
+  const updateData: any = { ...updates };
+  
+  // scheduled_start_timeがdatetime-local形式（YYYY-MM-DDTHH:mm）の場合、UTC形式に変換
+  if (updateData.scheduled_start_time && !updateData.scheduled_start_time.includes('Z') && !updateData.scheduled_start_time.includes('+')) {
+    // datetime-local形式をUTC形式に変換
+    const localDate = new Date(updateData.scheduled_start_time);
+    updateData.scheduled_start_time = localDate.toISOString();
+  }
+  
+  // end_timeを計算: scheduled_start_time + duration_minutes
+  if (updateData.scheduled_start_time && updateData.duration_minutes) {
+    const scheduledTime = new Date(updateData.scheduled_start_time);
+    const endTime = new Date(scheduledTime.getTime() + updateData.duration_minutes * 60 * 1000);
+    updateData.end_time = endTime.toISOString();
+  } else if (updateData.scheduled_start_time || updateData.duration_minutes) {
+    // どちらか一方だけが更新される場合、既存のデータを取得して計算
+    const { data: existingSlot } = await supabase
+      .from('call_slots')
+      .select('scheduled_start_time, duration_minutes')
+      .eq('id', callSlotId)
+      .single();
+    
+    if (existingSlot) {
+      const scheduledTime = new Date(updateData.scheduled_start_time || existingSlot.scheduled_start_time);
+      const durationMinutes = updateData.duration_minutes || existingSlot.duration_minutes;
+      const endTime = new Date(scheduledTime.getTime() + durationMinutes * 60 * 1000);
+      updateData.end_time = endTime.toISOString();
+    }
+  }
+
   const { data, error } = await supabase
     .from('call_slots')
-    .update(updates)
+    .update(updateData)
     .eq('id', callSlotId)
     .select()
     .single();

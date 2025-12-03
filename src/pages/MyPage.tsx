@@ -522,6 +522,12 @@ export default function MyPage() {
 
     try {
       setSaving(true);
+      setError(''); // エラーメッセージをクリア
+
+      console.log('📝 Talk枠更新開始:', {
+        callSlotId: editingCallSlot.id,
+        formData: editForm
+      });
 
       // 画像をアップロード（新しい画像が選択されている場合）
       let thumbnailUrl = editForm.thumbnail_url;
@@ -533,7 +539,7 @@ export default function MyPage() {
           console.log('✅ 画像アップロード成功:', thumbnailUrl);
         } catch (uploadError: any) {
           console.error('画像アップロードエラー:', uploadError);
-          alert(`画像のアップロードに失敗しました: ${uploadError.message}`);
+          setError(`画像のアップロードに失敗しました: ${uploadError.message}`);
           setSaving(false);
           setUploadingEditImage(false);
           return;
@@ -542,12 +548,37 @@ export default function MyPage() {
         }
       }
 
+      // datetime-local形式をUTC形式に変換
+      let scheduledStartTimeUTC = editForm.scheduled_start_time;
+      if (scheduledStartTimeUTC && !scheduledStartTimeUTC.includes('Z') && !scheduledStartTimeUTC.includes('+')) {
+        const localDate = new Date(scheduledStartTimeUTC);
+        scheduledStartTimeUTC = localDate.toISOString();
+        console.log('🕐 時間変換:', {
+          local: editForm.scheduled_start_time,
+          utc: scheduledStartTimeUTC
+        });
+      }
+
       // Call Slotを更新
       const { updateCallSlot } = await import('../api/callSlots');
-      await updateCallSlot(editingCallSlot.id, {
+      console.log('📤 Call Slot更新リクエスト:', {
+        id: editingCallSlot.id,
+        updates: {
+          title: editForm.title,
+          description: editForm.description,
+          scheduled_start_time: scheduledStartTimeUTC,
+          duration_minutes: editForm.duration_minutes,
+          starting_price: editForm.starting_price,
+          minimum_bid_increment: editForm.minimum_bid_increment,
+          buy_now_price: editHasBuyNowPrice ? editForm.buy_now_price : null,
+          thumbnail_url: thumbnailUrl,
+        }
+      });
+
+      const updatedSlot = await updateCallSlot(editingCallSlot.id, {
         title: editForm.title,
         description: editForm.description,
-        scheduled_start_time: editForm.scheduled_start_time,
+        scheduled_start_time: scheduledStartTimeUTC,
         duration_minutes: editForm.duration_minutes,
         starting_price: editForm.starting_price,
         minimum_bid_increment: editForm.minimum_bid_increment,
@@ -555,26 +586,51 @@ export default function MyPage() {
         thumbnail_url: thumbnailUrl,
       });
 
+      console.log('✅ Call Slot更新成功:', updatedSlot);
+
       // オークション終了時間を更新（変更されている場合）
       if (editForm.auction_end_time && editForm.auction_end_time !== editingCallSlot.auction_end_time?.slice(0, 16)) {
         const { supabase } = await import('../lib/supabase');
         if (editingCallSlot.auction_id) {
+          // datetime-local形式をUTC形式に変換
+          let auctionEndTimeUTC = editForm.auction_end_time;
+          if (!auctionEndTimeUTC.includes('Z') && !auctionEndTimeUTC.includes('+')) {
+            const localDate = new Date(auctionEndTimeUTC);
+            auctionEndTimeUTC = localDate.toISOString();
+          }
+
+          console.log('📤 オークション終了時間更新:', {
+            auction_id: editingCallSlot.auction_id,
+            new_end_time: auctionEndTimeUTC
+          });
+
           const { error } = await supabase.rpc('update_auction_end_time', {
             p_auction_id: editingCallSlot.auction_id,
-            p_new_end_time: editForm.auction_end_time
+            p_new_end_time: auctionEndTimeUTC
           });
-          if (error) throw error;
+          if (error) {
+            console.error('❌ オークション終了時間更新エラー:', error);
+            throw error;
+          }
+          console.log('✅ オークション終了時間更新成功');
         }
       }
 
       setSuccessMessage('Talk枠を更新しました');
       setTimeout(() => setSuccessMessage(''), 3000);
+      
+      // Talk枠一覧を再読み込み
       await loadCallSlots();
+      
+      // モーダルを閉じる
       setEditingCallSlot(null);
-    } catch (error) {
-      console.error('Talk枠更新エラー:', error);
-      setError('Talk枠の更新に失敗しました');
-      setTimeout(() => setError(''), 3000);
+      console.log('✅ Talk枠更新処理完了');
+    } catch (error: any) {
+      console.error('❌ Talk枠更新エラー:', error);
+      const errorMessage = error?.message || error?.error?.message || 'Talk枠の更新に失敗しました';
+      setError(errorMessage);
+      alert(`エラー: ${errorMessage}`);
+      setTimeout(() => setError(''), 5000);
     } finally {
       setSaving(false);
     }
