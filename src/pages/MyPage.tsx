@@ -20,7 +20,8 @@ import {
   Lock,
   Globe,
   Save,
-  Trash2
+  Trash2,
+  Upload
 } from 'lucide-react';
 import { Clock } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -2405,7 +2406,8 @@ export default function MyPage() {
                             return;
                           }
                           setEditImageFile(file);
-                          setEditImagePreview(getImagePreviewUrl(file));
+                          const previewUrl = await getImagePreviewUrl(file);
+                          setEditImagePreview(previewUrl);
                         }
                       }}
                     />
