@@ -1339,42 +1339,42 @@ export default function MyPage() {
                     return (
                       <div
                         key={slot.id}
-                        className="border-b-2 border-blue-200 p-4 hover:bg-white/10 transition-colors"
+                        className="border-b-2 border-blue-200 p-3 sm:p-4 hover:bg-white/10 transition-colors"
                       >
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center space-x-2 mb-2">
-                              <h5 className="text-sm font-bold text-gray-900 truncate">{slot.title}</h5>
-                              <span className={`px-2 py-1 text-xs font-medium ${status.color}`}>
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
+                          <div className="flex-1 min-w-0 w-full sm:w-auto">
+                            <div className="flex flex-wrap items-center gap-2 mb-2">
+                              <h5 className="text-sm font-bold text-gray-900 truncate flex-1 min-w-0">{slot.title}</h5>
+                              <span className={`px-2 py-1 text-xs font-medium whitespace-nowrap ${status.color}`}>
                                 {status.icon} {status.text}
                               </span>
                               {slot.is_published && (
-                                <span className="px-1.5 py-0.5 bg-green-100 text-green-700 text-xs flex-shrink-0">
+                                <span className="px-1.5 py-0.5 bg-green-100 text-green-700 text-xs whitespace-nowrap">
                                   公開中
                                 </span>
                               )}
                             </div>
 
                             {/* 予定日時を目立たせる */}
-                            <div className="bg-blue-50 p-2 mb-2">
+                            <div className="bg-blue-50 p-2 mb-2 rounded">
                               <div className="flex items-center space-x-2">
-                                <Calendar className="h-4 w-4 text-blue-600" />
-                                <span className="text-sm font-bold text-blue-800">
+                                <Calendar className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                                <span className="text-sm font-bold text-blue-800 whitespace-nowrap">
                                   {format(new Date(slot.scheduled_start_time), 'yyyy年MM月dd日 HH:mm', {
                                     locale: ja,
                                   })}
                                 </span>
-                                <span className="text-xs text-blue-600">
+                                <span className="text-xs text-blue-600 whitespace-nowrap">
                                   ({slot.duration_minutes}分間)
                                 </span>
                               </div>
                             </div>
 
                             {/* オークション終了時間 */}
-                            <div className="bg-orange-50 p-2 mb-2">
+                            <div className="bg-orange-50 p-2 mb-2 rounded">
                               <div className="flex items-center space-x-2">
-                                <Clock className="h-4 w-4 text-orange-600" />
-                                <span className="text-sm font-bold text-orange-800">
+                                <Clock className="h-4 w-4 text-orange-600 flex-shrink-0" />
+                                <span className="text-sm font-bold text-orange-800 truncate">
                                   {slot.auction_end_time ? (
                                     <>オークション終了: {format(new Date(slot.auction_end_time), 'yyyy年MM月dd日 HH:mm', {
                                       locale: ja,
@@ -1390,19 +1390,20 @@ export default function MyPage() {
                               <p className="text-xs text-gray-600 mb-2 line-clamp-2">{slot.description}</p>
                             )}
 
-                            <div className="flex flex-wrap gap-2 text-xs text-gray-600">
-                              <div className="flex items-center space-x-1">
-                                <DollarSign className="h-3 w-3" />
-                                <span>¥{slot.starting_price.toLocaleString()}</span>
+                            {/* 初期金額と入札単位をミニマルに表示 */}
+                            <div className="flex items-center gap-3 text-xs text-gray-600 bg-gray-50 px-2 py-1.5 rounded">
+                              <div className="flex items-center space-x-1 whitespace-nowrap">
+                                <DollarSign className="h-3 w-3 text-gray-500" />
+                                <span className="font-medium">¥{slot.starting_price.toLocaleString()}</span>
                               </div>
-
-                              <div className="text-gray-600">
-                                <span className="text-xs">最小: ¥{slot.minimum_bid_increment}</span>
+                              <span className="text-gray-400">|</span>
+                              <div className="text-gray-600 whitespace-nowrap">
+                                入札単位: ¥{slot.minimum_bid_increment.toLocaleString()}
                               </div>
                             </div>
                           </div>
 
-                          <div className="flex space-x-1 ml-2 flex-shrink-0">
+                          <div className="flex space-x-1 sm:ml-2 flex-shrink-0 justify-end sm:justify-start">
                             {talkSlotsTab === 'scheduled' && (
                               <button
                                 onClick={() => handleEditCallSlot(slot)}
