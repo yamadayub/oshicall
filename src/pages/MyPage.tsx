@@ -1341,8 +1341,8 @@ export default function MyPage() {
                         key={slot.id}
                         className="border-b-2 border-blue-200 p-3 sm:p-4 hover:bg-white/10 transition-colors"
                       >
-                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
-                          <div className="flex-1 min-w-0 w-full sm:w-auto">
+                        <div className="flex flex-col gap-3">
+                          <div className="flex-1 min-w-0 w-full">
                             <div className="flex flex-wrap items-center gap-2 mb-2">
                               <h5 className="text-sm font-bold text-gray-900 truncate flex-1 min-w-0">{slot.title}</h5>
                               <span className={`px-2 py-1 text-xs font-medium whitespace-nowrap ${status.color}`}>
@@ -1353,6 +1353,41 @@ export default function MyPage() {
                                   公開中
                                 </span>
                               )}
+                              <div className="flex space-x-1 flex-shrink-0">
+                                {talkSlotsTab === 'scheduled' && (
+                                  <button
+                                    onClick={() => handleEditCallSlot(slot)}
+                                    className="p-1.5 text-gray-600 hover:text-purple-600 hover:bg-purple-50 transition-colors"
+                                    title="Talk枠を編集"
+                                  >
+                                    <EditIcon className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+
+                                {talkSlotsTab === 'scheduled' && (
+                                  <button
+                                    onClick={() => handleTogglePublish(slot.id, slot.is_published)}
+                                    className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                    title={slot.is_published ? '非公開にする' : '公開する'}
+                                  >
+                                    {slot.is_published ? (
+                                      <EyeOff className="h-3 w-3" />
+                                    ) : (
+                                      <Eye className="h-3 w-3" />
+                                    )}
+                                  </button>
+                                )}
+
+                                {talkSlotsTab === 'scheduled' && (
+                                  <button
+                                    onClick={() => handleDelete(slot.id)}
+                                    className="p-1.5 text-gray-600 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                    title="削除"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                )}
+                              </div>
                             </div>
 
                             {/* 予定日時を目立たせる */}
@@ -1392,51 +1427,14 @@ export default function MyPage() {
 
                             {/* 初期金額と入札単位をミニマルに表示 */}
                             <div className="flex items-center gap-3 text-xs text-gray-600 bg-gray-50 px-2 py-1.5 rounded">
-                              <div className="flex items-center space-x-1 whitespace-nowrap">
-                                <DollarSign className="h-3 w-3 text-gray-500" />
-                                <span className="font-medium">¥{slot.starting_price.toLocaleString()}</span>
+                              <div className="text-gray-600 whitespace-nowrap">
+                                開始価格: ¥{slot.starting_price.toLocaleString()}
                               </div>
                               <span className="text-gray-400">|</span>
                               <div className="text-gray-600 whitespace-nowrap">
                                 入札単位: ¥{slot.minimum_bid_increment.toLocaleString()}
                               </div>
                             </div>
-                          </div>
-
-                          <div className="flex space-x-1 sm:ml-2 flex-shrink-0 justify-end sm:justify-start">
-                            {talkSlotsTab === 'scheduled' && (
-                              <button
-                                onClick={() => handleEditCallSlot(slot)}
-                                className="p-1.5 text-gray-600 hover:text-purple-600 hover:bg-purple-50 transition-colors"
-                                title="Talk枠を編集"
-                              >
-                                <EditIcon className="h-3.5 w-3.5" />
-                              </button>
-                            )}
-
-                            {talkSlotsTab === 'scheduled' && (
-                              <button
-                                onClick={() => handleTogglePublish(slot.id, slot.is_published)}
-                                className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                                title={slot.is_published ? '非公開にする' : '公開する'}
-                              >
-                                {slot.is_published ? (
-                                  <EyeOff className="h-3 w-3" />
-                                ) : (
-                                  <Eye className="h-3 w-3" />
-                                )}
-                              </button>
-                            )}
-
-                            {talkSlotsTab === 'scheduled' && (
-                              <button
-                                onClick={() => handleDelete(slot.id)}
-                                className="p-1.5 text-gray-600 hover:text-red-600 hover:bg-red-50 transition-colors"
-                                title="削除"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </button>
-                            )}
                           </div>
                         </div>
                       </div>
