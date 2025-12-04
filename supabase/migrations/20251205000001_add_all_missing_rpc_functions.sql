@@ -116,6 +116,10 @@ END;
 $$;
 
 -- 5. create_auction_with_default_end_time
+-- 既存の関数を削除してから再作成（戻り値の型を変更するため）
+DROP FUNCTION IF EXISTS public.create_auction_with_default_end_time(UUID, TIMESTAMPTZ) CASCADE;
+DROP FUNCTION IF EXISTS public.create_auction_with_default_end_time(UUID) CASCADE;
+
 CREATE OR REPLACE FUNCTION public.create_auction_with_default_end_time(
   p_call_slot_id UUID,
   p_start_time TIMESTAMPTZ DEFAULT NOW()
