@@ -186,7 +186,9 @@ GRANT EXECUTE ON FUNCTION public.get_auction_end_time(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_auction_end_time(UUID) TO anon;
 GRANT EXECUTE ON FUNCTION public.get_auction_end_time(UUID) TO service_role;
 
--- 7. update_auction_end_time
+-- 7. update_auction_end_time (既存を削除してから再作成)
+DROP FUNCTION IF EXISTS public.update_auction_end_time(UUID, TIMESTAMPTZ) CASCADE;
+
 CREATE OR REPLACE FUNCTION public.update_auction_end_time(
   p_auction_id UUID,
   p_new_end_time TIMESTAMPTZ
