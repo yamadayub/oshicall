@@ -1,6 +1,11 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+// STRIPE_PUBLISHABLE_KEYをVITE_STRIPE_PUBLISHABLE_KEYにマッピング（VITE_プレフィックスなしで設定されている場合）
+if (process.env.STRIPE_PUBLISHABLE_KEY && !process.env.VITE_STRIPE_PUBLISHABLE_KEY) {
+  process.env.VITE_STRIPE_PUBLISHABLE_KEY = process.env.STRIPE_PUBLISHABLE_KEY;
+}
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
