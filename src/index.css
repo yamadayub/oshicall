@@ -34,3 +34,7 @@
     animation: bounce-in 0.5s ease-out;
   }
 }
+
+/* Stripe 3D Secure認証ダイアログが正しく表示されるように */
+/* Stripeの認証ダイアログは通常、ページの最上位に表示される */
+/* モーダルのz-indexを下げることで、Stripeの認証ダイアログが正しく表示される */

@@ -207,7 +207,12 @@ export default function CardRegistrationModal({ isOpen, onClose, onSuccess }: Ca
 
   return (
     <div 
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4"
+      style={{ 
+        // Stripeの3D Secure認証ダイアログが表示される際に干渉しないようにz-indexを下げる
+        // Stripeの認証ダイアログは通常 z-index: 2147483647 で表示されるため、低い値に設定
+        zIndex: 50
+      }}
       onClick={(e) => {
         // オーバーレイをクリックした場合のみ閉じる
         if (e.target === e.currentTarget) {
@@ -216,7 +221,11 @@ export default function CardRegistrationModal({ isOpen, onClose, onSuccess }: Ca
       }}
     >
       <div 
-        className="bg-white rounded-2xl max-w-md w-full p-8 relative shadow-2xl z-[10000]"
+        className="bg-white rounded-2xl max-w-md w-full p-8 relative shadow-2xl"
+        style={{ 
+          // Stripeの認証ダイアログより低いz-indexに設定
+          zIndex: 51
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         <button
