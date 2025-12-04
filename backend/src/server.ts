@@ -1101,7 +1101,7 @@ app.put('/api/call-slots/:callSlotId', async (req: Request, res: Response) => {
     console.log('🔍 Talk枠取得開始:', { callSlotId });
     const { data: callSlot, error: callSlotError } = await supabase
       .from('call_slots')
-      .select('id, user_id, auction_id')
+      .select('id, user_id')
       .eq('id', callSlotId)
       .single();
 
@@ -1125,18 +1125,27 @@ app.put('/api/call-slots/:callSlotId', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Talk枠が見つかりません' });
     }
 
+    // 3. オークション情報を取得（auction_idを取得するため）
+    const { data: auction, error: auctionError } = await supabase
+      .from('auctions')
+      .select('id')
+      .eq('call_slot_id', callSlotId)
+      .single();
+
+    const auctionId = auction?.id || null;
+
     console.log('✅ Talk枠取得成功:', { 
       id: callSlot.id, 
       user_id: callSlot.user_id, 
-      auction_id: callSlot.auction_id 
+      auction_id: auctionId 
     });
 
-    // 3. 権限確認（インフルエンサーが自分のTalk枠を更新できるか）
+    // 4. 権限確認（インフルエンサーが自分のTalk枠を更新できるか）
     if (callSlot.user_id !== user.id) {
       return res.status(403).json({ error: 'このTalk枠を更新する権限がありません' });
     }
 
-    // 4. end_timeを計算（scheduled_start_time + duration_minutes）
+    // 5. end_timeを計算（scheduled_start_time + duration_minutes）
     let endTimeUTC: string | undefined;
     if (scheduled_start_time && duration_minutes) {
       const scheduledTime = new Date(scheduled_start_time);
@@ -1144,7 +1153,7 @@ app.put('/api/call-slots/:callSlotId', async (req: Request, res: Response) => {
       endTimeUTC = endTime.toISOString();
     }
 
-    // 5. call_slotsテーブルを更新
+    // 6. call_slotsテーブルを更新
     const callSlotUpdateData: any = {};
     if (title !== undefined) callSlotUpdateData.title = title;
     if (description !== undefined) callSlotUpdateData.description = description;
@@ -1171,8 +1180,8 @@ app.put('/api/call-slots/:callSlotId', async (req: Request, res: Response) => {
 
     console.log('✅ Talk枠更新成功:', updatedCallSlot.id);
 
-    // 6. オークション情報を更新（auction_idが存在し、auction_end_timeが指定されている場合）
-    if (callSlot.auction_id && auction_end_time) {
+    // 7. オークション情報を更新（auction_idが存在し、auction_end_timeが指定されている場合）
+    if (auctionId && auction_end_time) {
       const auctionUpdateData: any = {
         auction_end_time: auction_end_time,
         end_time: auction_end_time,
@@ -1182,7 +1191,7 @@ app.put('/api/call-slots/:callSlotId', async (req: Request, res: Response) => {
       const { data: updatedAuction, error: auctionUpdateError } = await supabase
         .from('auctions')
         .update(auctionUpdateData)
-        .eq('id', callSlot.auction_id)
+        .eq('id', auctionId)
         .select()
         .single();
 
