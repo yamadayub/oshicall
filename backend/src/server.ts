@@ -1071,10 +1071,19 @@ app.put('/api/call-slots/:callSlotId', async (req: Request, res: Response) => {
       auction_end_time
     } = req.body;
 
-    console.log('🔵 Talk枠更新開始:', { callSlotId, authUserId });
+    console.log('🔵 Talk枠更新開始:', { 
+      callSlotId, 
+      authUserId,
+      callSlotIdType: typeof callSlotId,
+      callSlotIdLength: callSlotId?.length
+    });
 
     if (!authUserId) {
       return res.status(401).json({ error: '認証が必要です' });
+    }
+
+    if (!callSlotId) {
+      return res.status(400).json({ error: 'Talk枠IDが指定されていません' });
     }
 
     // 1. ユーザー情報を取得
@@ -1089,15 +1098,38 @@ app.put('/api/call-slots/:callSlotId', async (req: Request, res: Response) => {
     }
 
     // 2. Talk枠情報を取得（権限確認のため）
+    console.log('🔍 Talk枠取得開始:', { callSlotId });
     const { data: callSlot, error: callSlotError } = await supabase
       .from('call_slots')
       .select('id, user_id, auction_id')
       .eq('id', callSlotId)
       .single();
 
-    if (callSlotError || !callSlot) {
+    if (callSlotError) {
+      console.error('❌ Talk枠取得エラー:', {
+        error: callSlotError,
+        code: callSlotError.code,
+        message: callSlotError.message,
+        details: callSlotError.details,
+        hint: callSlotError.hint,
+        callSlotId
+      });
+      return res.status(404).json({ 
+        error: 'Talk枠が見つかりません',
+        details: callSlotError.message 
+      });
+    }
+
+    if (!callSlot) {
+      console.error('❌ Talk枠が見つかりません:', { callSlotId });
       return res.status(404).json({ error: 'Talk枠が見つかりません' });
     }
+
+    console.log('✅ Talk枠取得成功:', { 
+      id: callSlot.id, 
+      user_id: callSlot.user_id, 
+      auction_id: callSlot.auction_id 
+    });
 
     // 3. 権限確認（インフルエンサーが自分のTalk枠を更新できるか）
     if (callSlot.user_id !== user.id) {
