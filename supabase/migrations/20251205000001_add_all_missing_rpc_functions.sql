@@ -162,7 +162,9 @@ $$;
 GRANT EXECUTE ON FUNCTION public.create_auction_with_default_end_time(UUID, TIMESTAMPTZ) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.create_auction_with_default_end_time(UUID, TIMESTAMPTZ) TO service_role;
 
--- 6. get_auction_end_time
+-- 6. get_auction_end_time (既存を削除してから再作成)
+DROP FUNCTION IF EXISTS public.get_auction_end_time(UUID) CASCADE;
+
 CREATE OR REPLACE FUNCTION public.get_auction_end_time(p_auction_id UUID)
 RETURNS TIMESTAMPTZ
 LANGUAGE plpgsql
