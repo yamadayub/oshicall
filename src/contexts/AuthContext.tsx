@@ -84,7 +84,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Supabaseでユーザー情報を取得
       console.log('🔍 getSupabaseUserを呼び出し...');
       let user = await getSupabaseUser(authUser.id);
-      console.log('🔍 getSupabaseUser結果:', { userFound: !!user, userId: user?.id });
+      console.log('🔍 getSupabaseUser結果:', { 
+        userFound: !!user, 
+        userId: user?.id,
+        stripe_customer_id: user?.stripe_customer_id,
+        has_payment_method: user?.has_payment_method
+      });
 
       if (!user) {
         // 初回ログイン - デフォルトでファンとして登録

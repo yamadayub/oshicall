@@ -401,8 +401,22 @@ export default function TalkDetail() {
       userEmail: user.email,
     });
 
-    if (!supabaseUser.stripe_customer_id) {
-      throw new Error('Stripe顧客IDが見つかりません。カード登録を再度お試しください。');
+    // stripe_customer_idが見つからない場合、データベースから直接取得
+    let customerId = supabaseUser.stripe_customer_id;
+    if (!customerId) {
+      console.log('⚠️ stripe_customer_idが見つからないため、データベースから取得します');
+      const { data: customerData, error: customerError } = await supabase
+        .from('users')
+        .select('stripe_customer_id')
+        .eq('auth_user_id', user.id)
+        .single();
+
+      if (customerError || !customerData?.stripe_customer_id) {
+        throw new Error('Stripe顧客IDが見つかりません。カード登録を再度お試しください。');
+      }
+
+      customerId = customerData.stripe_customer_id;
+      console.log('✅ データベースから取得したstripe_customer_id:', customerId);
     }
 
     try {
@@ -414,7 +428,7 @@ export default function TalkDetail() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           amount: bidAmount,
-          customerId: supabaseUser.stripe_customer_id,
+          customerId: customerId,
           auctionId: auctionId,
           userId: supabaseUser.id, // ユーザーIDを追加
         }),

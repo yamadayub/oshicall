@@ -103,8 +103,16 @@ function CardRegistrationForm({ onClose, onSuccess }: Omit<CardRegistrationModal
         console.log('🔵 ユーザー情報を再取得中...');
         await refreshUser();
         
-        // 少し待機してから次の処理へ（Supabase同期を確実にする）
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // 少し待機してから再度取得（Supabase同期を確実にする）
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await refreshUser();
+        
+        // 更新後のユーザー情報を確認（refreshUser後に再取得）
+        await new Promise(resolve => setTimeout(resolve, 300));
+        // 最新のユーザー情報を取得するため、再度refreshUserを呼び出す
+        await refreshUser();
+        
+        console.log('🔍 カード登録後の処理完了');
         
         console.log('✅ カード登録完了！');
 
