@@ -86,17 +86,47 @@ export const placeBid = async (
   if (bidError) throw bidError;
 
   // オークション情報を更新
-  // bidAmountを明示的に数値型に変換（DECIMAL/NUMERIC型として扱う）
-  const { error: updateError } = await supabase.rpc(
-    'update_auction_highest_bid',
-    {
-      p_auction_id: auctionId,
-      p_bid_amount: Number(bidAmount), // 明示的に数値型に変換
-      p_user_id: fanId,
-    }
-  );
+  // RPC関数の代わりに直接UPDATE文を使用（PostgRESTのスキーマキャッシュ問題を回避）
+  // まず現在のオークション情報を取得
+  const { data: currentAuction, error: fetchError } = await supabase
+    .from('auctions')
+    .select('total_bids_count')
+    .eq('id', auctionId)
+    .single();
+  
+  if (fetchError) throw fetchError;
+
+  // オークション情報を更新
+  const { error: updateError } = await supabase
+    .from('auctions')
+    .update({
+      current_highest_bid: Number(bidAmount),
+      current_winner_id: fanId,
+      total_bids_count: (currentAuction?.total_bids_count || 0) + 1,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', auctionId);
   
   if (updateError) throw updateError;
+
+  // unique_bidders_countを更新
+  const { data: uniqueBiddersData } = await supabase
+    .from('bids')
+    .select('user_id')
+    .eq('auction_id', auctionId);
+
+  if (uniqueBiddersData) {
+    const uniqueBidders = new Set(uniqueBiddersData.map(bid => bid.user_id)).size;
+    const { error: uniqueBiddersError } = await supabase
+      .from('auctions')
+      .update({ unique_bidders_count: uniqueBidders })
+      .eq('id', auctionId);
+
+    if (uniqueBiddersError) {
+      console.error('⚠️ unique_bidders_count更新エラー（無視）:', uniqueBiddersError);
+      // このエラーは致命的ではないので、続行
+    }
+  }
   
   return bid;
 };
