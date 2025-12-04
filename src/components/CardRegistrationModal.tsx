@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, CreditCard } from 'lucide-react';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import stripePromise from '../lib/stripe';
@@ -17,6 +17,14 @@ function CardRegistrationForm({ onClose, onSuccess }: Omit<CardRegistrationModal
   const { user, supabaseUser, refreshUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isReady, setIsReady] = useState(false);
+
+  useEffect(() => {
+    // Stripe Elementsが読み込まれるまで待つ
+    if (stripe && elements) {
+      setIsReady(true);
+    }
+  }, [stripe, elements]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,33 +111,41 @@ function CardRegistrationForm({ onClose, onSuccess }: Omit<CardRegistrationModal
     }
   };
 
+  if (!isReady) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center py-8">
+          <p className="text-gray-600">読み込み中...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
           クレジットカード情報
         </label>
-        <div className="p-4 border border-gray-300 rounded-lg bg-white">
-          <div id="card-element-wrapper" style={{ pointerEvents: 'auto' }}>
-            <CardElement
-              options={{
-                style: {
-                  base: {
-                    fontSize: '16px',
-                    color: '#424770',
-                    fontFamily: 'system-ui, -apple-system, sans-serif',
-                    '::placeholder': {
-                      color: '#aab7c4',
-                    },
-                  },
-                  invalid: {
-                    color: '#9e2146',
+        <div className="p-4 border border-gray-300 rounded-lg bg-white" style={{ position: 'relative', zIndex: 1 }}>
+          <CardElement
+            options={{
+              style: {
+                base: {
+                  fontSize: '16px',
+                  color: '#424770',
+                  fontFamily: 'system-ui, -apple-system, sans-serif',
+                  '::placeholder': {
+                    color: '#aab7c4',
                   },
                 },
-                hidePostalCode: true,
-              }}
-            />
-          </div>
+                invalid: {
+                  color: '#9e2146',
+                },
+              },
+              hidePostalCode: true,
+            }}
+          />
         </div>
         <p className="text-xs text-gray-500 mt-2">
           💳 テストカード番号: 4242 4242 4242 4242 (有効期限: 任意の未来日付, CVC: 任意の3桁)
@@ -167,11 +183,22 @@ export default function CardRegistrationModal({ isOpen, onClose, onSuccess }: Ca
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" style={{ pointerEvents: 'auto' }}>
-      <div className="bg-white rounded-2xl max-w-md w-full p-8 relative shadow-2xl" style={{ pointerEvents: 'auto' }}>
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
+      onClick={(e) => {
+        // オーバーレイをクリックした場合のみ閉じる
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div 
+        className="bg-white rounded-2xl max-w-md w-full p-8 relative shadow-2xl z-[10000]"
+        onClick={(e) => e.stopPropagation()}
+      >
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors z-10"
         >
           <X className="h-6 w-6" />
         </button>
@@ -189,6 +216,7 @@ export default function CardRegistrationModal({ isOpen, onClose, onSuccess }: Ca
         </div>
 
         <Elements 
+          key={isOpen ? 'elements-key' : undefined}
           stripe={stripePromise}
           options={{
             appearance: {
