@@ -86,11 +86,12 @@ export const placeBid = async (
   if (bidError) throw bidError;
 
   // オークション情報を更新
+  // bidAmountを明示的に数値型に変換（DECIMAL/NUMERIC型として扱う）
   const { error: updateError } = await supabase.rpc(
     'update_auction_highest_bid',
     {
       p_auction_id: auctionId,
-      p_bid_amount: bidAmount,
+      p_bid_amount: Number(bidAmount), // 明示的に数値型に変換
       p_user_id: fanId,
     }
   );
