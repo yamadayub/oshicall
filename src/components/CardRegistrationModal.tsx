@@ -109,24 +109,27 @@ function CardRegistrationForm({ onClose, onSuccess }: Omit<CardRegistrationModal
         <label className="block text-sm font-medium text-gray-700 mb-2">
           クレジットカード情報
         </label>
-        <div className="p-4 border border-gray-300 rounded-lg bg-gray-50">
-          <CardElement
-            options={{
-              style: {
-                base: {
-                  fontSize: '16px',
-                  color: '#424770',
-                  '::placeholder': {
-                    color: '#aab7c4',
+        <div className="p-4 border border-gray-300 rounded-lg bg-white">
+          <div id="card-element-wrapper" style={{ pointerEvents: 'auto' }}>
+            <CardElement
+              options={{
+                style: {
+                  base: {
+                    fontSize: '16px',
+                    color: '#424770',
+                    fontFamily: 'system-ui, -apple-system, sans-serif',
+                    '::placeholder': {
+                      color: '#aab7c4',
+                    },
+                  },
+                  invalid: {
+                    color: '#9e2146',
                   },
                 },
-                invalid: {
-                  color: '#9e2146',
-                },
-              },
-              hidePostalCode: true,
-            }}
-          />
+                hidePostalCode: true,
+              }}
+            />
+          </div>
         </div>
         <p className="text-xs text-gray-500 mt-2">
           💳 テストカード番号: 4242 4242 4242 4242 (有効期限: 任意の未来日付, CVC: 任意の3桁)
@@ -164,8 +167,8 @@ export default function CardRegistrationModal({ isOpen, onClose, onSuccess }: Ca
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl max-w-md w-full p-8 relative shadow-2xl">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" style={{ pointerEvents: 'auto' }}>
+      <div className="bg-white rounded-2xl max-w-md w-full p-8 relative shadow-2xl" style={{ pointerEvents: 'auto' }}>
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
@@ -185,7 +188,14 @@ export default function CardRegistrationModal({ isOpen, onClose, onSuccess }: Ca
           </p>
         </div>
 
-        <Elements stripe={stripePromise}>
+        <Elements 
+          stripe={stripePromise}
+          options={{
+            appearance: {
+              theme: 'stripe',
+            },
+          }}
+        >
           <CardRegistrationForm onClose={onClose} onSuccess={onSuccess} />
         </Elements>
       </div>
