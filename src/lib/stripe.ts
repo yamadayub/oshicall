@@ -1,9 +1,9 @@
 import { loadStripe } from '@stripe/stripe-js';
 
-const publishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+const publishableKey = import.meta.env.STRIPE_PUBLISHABLE_KEY || import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
 
 if (!publishableKey) {
-  console.error('❌ VITE_STRIPE_PUBLISHABLE_KEYが設定されていません');
+  console.error('❌ STRIPE_PUBLISHABLE_KEYが設定されていません');
 }
 
 const stripePromise = publishableKey ? loadStripe(publishableKey) : null;

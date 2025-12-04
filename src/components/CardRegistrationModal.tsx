@@ -28,7 +28,7 @@ function CardRegistrationForm({ onClose, onSuccess }: Omit<CardRegistrationModal
       console.log('⏳ Stripe Elements読み込み中...', { 
         stripe: !!stripe, 
         elements: !!elements,
-        publishableKey: !!import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
+        publishableKey: !!(import.meta.env.STRIPE_PUBLISHABLE_KEY || import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
       });
     }
   }, [stripe, elements]);
@@ -119,7 +119,7 @@ function CardRegistrationForm({ onClose, onSuccess }: Omit<CardRegistrationModal
   };
 
   if (!isReady) {
-    const hasPublishableKey = !!import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+    const hasPublishableKey = !!(import.meta.env.STRIPE_PUBLISHABLE_KEY || import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
     return (
       <div className="space-y-6">
         <div className="text-center py-8">
