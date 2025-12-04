@@ -71,6 +71,8 @@ function CardRegistrationForm({ onClose, onSuccess, onAuthenticatingChange }: Ca
       }
 
       // 3D Secure認証が開始される可能性があるため、認証中フラグを設定
+      // 少し遅延を入れて、Stripeの認証ダイアログが表示されるのを待つ
+      await new Promise(resolve => setTimeout(resolve, 100));
       setIsAuthenticating(true);
       onAuthenticatingChange?.(true);
       
@@ -88,6 +90,8 @@ function CardRegistrationForm({ onClose, onSuccess, onAuthenticatingChange }: Ca
       );
       
       // 認証処理が完了したらフラグを解除
+      // 少し遅延を入れて、Stripeの認証ダイアログが完全に閉じられるのを待つ
+      await new Promise(resolve => setTimeout(resolve, 300));
       setIsAuthenticating(false);
       onAuthenticatingChange?.(false);
 
@@ -134,9 +138,11 @@ function CardRegistrationForm({ onClose, onSuccess, onAuthenticatingChange }: Ca
     } catch (err: any) {
       console.error('カード登録エラー:', err);
       setError(err.message || 'カード登録に失敗しました');
-      // エラー時も認証状態を解除
-      setIsAuthenticating(false);
-      onAuthenticatingChange?.(false);
+      // エラー時も認証状態を解除（少し遅延を入れて、Stripeの認証ダイアログが閉じられるのを待つ）
+      setTimeout(() => {
+        setIsAuthenticating(false);
+        onAuthenticatingChange?.(false);
+      }, 300);
     } finally {
       setLoading(false);
     }
@@ -282,10 +288,20 @@ export default function CardRegistrationModal({ isOpen, onClose, onSuccess }: Ca
         style={{ 
           // Stripeの認証ダイアログより低いz-indexに設定
           zIndex: 51,
-          // モーダルコンテンツ自体は常にpointer-eventsを有効にする
-          pointerEvents: 'auto'
+          // 認証中はモーダルコンテンツを完全に非表示にして干渉を防ぐ
+          visibility: isAuthenticating ? 'hidden' : 'visible',
+          // 認証中はモーダルコンテンツのpointer-eventsも無効化
+          pointerEvents: isAuthenticating ? 'none' : 'auto'
         }}
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          // 認証中はクリックイベントを完全にブロック
+          if (isAuthenticating) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
+          e.stopPropagation();
+        }}
       >
         <button
           onClick={onClose}
