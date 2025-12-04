@@ -572,8 +572,11 @@ export default function MyPage() {
 
       // バックエンドAPIを呼び出してTalk枠とオークション情報を一括更新
       const backendUrl = getBackendUrl();
+      const isDevelopment = import.meta.env.DEV || import.meta.env.MODE === 'development';
       
-      if (!backendUrl) {
+      // 開発環境でのみバックエンドURLのチェックを行う
+      // 本番環境では空文字列（相対パス）でも問題ない（同じドメインで動作するため）
+      if (!backendUrl && isDevelopment) {
         throw new Error('バックエンドURLが設定されていません。環境変数VITE_BACKEND_URLを設定するか、開発環境ではバックエンドサーバーを起動してください。');
       }
 
