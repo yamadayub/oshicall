@@ -22,7 +22,14 @@ function CardRegistrationForm({ onClose, onSuccess }: Omit<CardRegistrationModal
   useEffect(() => {
     // Stripe Elementsが読み込まれるまで待つ
     if (stripe && elements) {
+      console.log('✅ Stripe Elements読み込み完了');
       setIsReady(true);
+    } else {
+      console.log('⏳ Stripe Elements読み込み中...', { 
+        stripe: !!stripe, 
+        elements: !!elements,
+        publishableKey: !!import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
+      });
     }
   }, [stripe, elements]);
 
@@ -112,10 +119,18 @@ function CardRegistrationForm({ onClose, onSuccess }: Omit<CardRegistrationModal
   };
 
   if (!isReady) {
+    const hasPublishableKey = !!import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
     return (
       <div className="space-y-6">
         <div className="text-center py-8">
-          <p className="text-gray-600">読み込み中...</p>
+          {!hasPublishableKey ? (
+            <div>
+              <p className="text-red-600 font-medium mb-2">⚠️ Stripe APIキーが設定されていません</p>
+              <p className="text-sm text-gray-600">VITE_STRIPE_PUBLISHABLE_KEYを確認してください</p>
+            </div>
+          ) : (
+            <p className="text-gray-600">読み込み中...</p>
+          )}
         </div>
       </div>
     );
@@ -215,17 +230,26 @@ export default function CardRegistrationModal({ isOpen, onClose, onSuccess }: Ca
           </p>
         </div>
 
-        <Elements 
-          key={isOpen ? 'elements-key' : undefined}
-          stripe={stripePromise}
-          options={{
-            appearance: {
-              theme: 'stripe',
-            },
-          }}
-        >
-          <CardRegistrationForm onClose={onClose} onSuccess={onSuccess} />
-        </Elements>
+        {stripePromise ? (
+          <Elements 
+            key={isOpen ? 'elements-key' : undefined}
+            stripe={stripePromise}
+            options={{
+              appearance: {
+                theme: 'stripe',
+              },
+            }}
+          >
+            <CardRegistrationForm onClose={onClose} onSuccess={onSuccess} />
+          </Elements>
+        ) : (
+          <div className="space-y-6">
+            <div className="text-center py-8">
+              <p className="text-red-600 font-medium mb-2">⚠️ Stripe APIキーが設定されていません</p>
+              <p className="text-sm text-gray-600">VITE_STRIPE_PUBLISHABLE_KEYを確認してください</p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
