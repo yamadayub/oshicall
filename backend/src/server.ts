@@ -422,6 +422,7 @@ app.post('/api/buy-now', async (req: Request, res: Response) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
         },
         body: JSON.stringify({ auctionId, winnerId: userId }),
       });
