@@ -8,6 +8,7 @@ import { createCallsRouter } from './routes/calls';
 import { createDailyAdminRouter } from './routes/dailyAdmin';
 import { createDailyWebhookRouter } from './routes/dailyWebhook';
 import influencerApplicationRouter from './routes/influencerApplication';
+import cron from 'node-cron';
 
 dotenv.config();
 
@@ -1412,6 +1413,45 @@ app.listen(PORT, () => {
   if (process.env.NODE_ENV === 'production') {
     console.log(`📦 Serving static files from dist/`);
   }
+
+  // ============================================
+  // オークション自動終了スケジューラー
+  // ============================================
+  console.log('⏰ スケジューラーを初期化中...');
+
+  // 1分ごとに実行
+  cron.schedule('* * * * *', async () => {
+    console.log('⏰ 自動終了処理を実行開始...');
+    const edgeFunctionUrl = `${process.env.SUPABASE_URL}/functions/v1/finalize-auctions`;
+
+    try {
+      const response = await fetch(edgeFunctionUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ 自動終了処理エラー:', errorText);
+      } else {
+        const result: any = await response.json();
+        if (result.processed > 0) {
+          console.log(`✅ 自動終了処理完了: ${result.processed}件のオークションを処理しました`);
+          console.log('詳細:', JSON.stringify(result.results, null, 2));
+        } else {
+          // 処理なしの場合はログを抑制（ノイズ削減）
+          // console.log('✅ 終了対象のオークションはありませんでした');
+        }
+      }
+    } catch (error: any) {
+      console.error('❌ 自動終了処理呼び出し失敗:', error.message);
+    }
+  });
+
+  console.log('✅ スケジューラー起動完了: 毎分オークション終了判定を行います');
 });
 
 
