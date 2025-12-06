@@ -129,31 +129,31 @@ app.use('/api', influencerApplicationRouter);
 app.post('/api/stripe/create-customer', async (req: Request, res: Response) => {
   try {
     const { email, name, authUserId } = req.body;
-    
+
     console.log('🔵 Stripe Customer作成開始:', { email, name, authUserId });
-    
+
     const customer = await stripe.customers.create({
       email,
       name,
       metadata: { auth_user_id: authUserId },
     });
-    
+
     console.log('✅ Stripe Customer作成成功:', customer.id);
-    
+
     // Supabaseのusersテーブルを更新
     const { data, error } = await supabase
       .from('users')
       .update({ stripe_customer_id: customer.id })
       .eq('auth_user_id', authUserId)
       .select();
-    
+
     if (error) {
       console.error('❌ Supabase更新エラー:', error);
       throw error;
     }
-    
+
     console.log('✅ Supabase更新成功:', data);
-    
+
     res.json({ customerId: customer.id });
   } catch (error: any) {
     console.error('Customer作成エラー:', error);
@@ -167,13 +167,13 @@ app.post('/api/stripe/create-customer', async (req: Request, res: Response) => {
 app.post('/api/stripe/create-setup-intent', async (req: Request, res: Response) => {
   try {
     const { customerId } = req.body;
-    
+
     const setupIntent = await stripe.setupIntents.create({
       customer: customerId,
       payment_method_types: ['card'],
       usage: 'off_session', // オフセッション決済を許可
     });
-    
+
     res.json({ clientSecret: setupIntent.client_secret });
   } catch (error: any) {
     console.error('SetupIntent作成エラー:', error);
@@ -187,14 +187,14 @@ app.post('/api/stripe/create-setup-intent', async (req: Request, res: Response) 
 app.post('/api/stripe/set-default-payment-method', async (req: Request, res: Response) => {
   try {
     const { customerId, paymentMethodId } = req.body;
-    
+
     // デフォルト支払い方法を設定
     await stripe.customers.update(customerId, {
       invoice_settings: {
         default_payment_method: paymentMethodId,
       },
     });
-    
+
     res.json({ success: true });
   } catch (error: any) {
     console.error('デフォルト支払い方法設定エラー:', error);
@@ -208,23 +208,23 @@ app.post('/api/stripe/set-default-payment-method', async (req: Request, res: Res
 app.post('/api/stripe/confirm-payment-method', async (req: Request, res: Response) => {
   try {
     const { authUserId } = req.body;
-    
+
     console.log('🔵 カード登録確認開始:', { authUserId });
-    
+
     // usersテーブルを更新（Service Role Keyで実行）
     const { data, error } = await supabase
       .from('users')
       .update({ has_payment_method: true })
       .eq('auth_user_id', authUserId)
       .select();
-    
+
     if (error) {
       console.error('❌ Supabase更新エラー:', error);
       throw error;
     }
-    
+
     console.log('✅ has_payment_method更新成功:', data);
-    
+
     res.json({ success: true, updatedUser: data });
   } catch (error: any) {
     console.error('カード登録確認エラー:', error);
@@ -238,9 +238,9 @@ app.post('/api/stripe/confirm-payment-method', async (req: Request, res: Respons
 app.post('/api/stripe/authorize-payment', async (req: Request, res: Response) => {
   try {
     const { amount, customerId, auctionId, userId } = req.body;
-    
+
     console.log('🔵 与信確保開始:', { amount, customerId, auctionId, userId });
-    
+
     // 1. 前回の最高入札を取得
     const { data: previousBids, error: previousBidsError } = await supabase
       .from('bids')
@@ -248,11 +248,11 @@ app.post('/api/stripe/authorize-payment', async (req: Request, res: Response) =>
       .eq('auction_id', auctionId)
       .order('bid_amount', { ascending: false })
       .limit(1);
-    
+
     if (previousBidsError) {
       console.error('前回入札取得エラー:', previousBidsError);
     }
-    
+
     // 2. 前回の与信をキャンセル（別のユーザーの場合）
     if (previousBids && previousBids.length > 0 && previousBids[0].user_id !== userId) {
       const previousPaymentIntentId = previousBids[0].stripe_payment_intent_id;
@@ -267,20 +267,20 @@ app.post('/api/stripe/authorize-payment', async (req: Request, res: Response) =>
         }
       }
     }
-    
+
     // 3. 顧客のデフォルト支払い方法を取得
     const customer = await stripe.customers.retrieve(customerId);
-    
+
     if (!customer || customer.deleted) {
       throw new Error('顧客が見つかりません');
     }
-    
+
     const defaultPaymentMethod = (customer as Stripe.Customer).invoice_settings?.default_payment_method;
-    
+
     if (!defaultPaymentMethod) {
       throw new Error('支払い方法が登録されていません');
     }
-    
+
     // 4. PaymentIntentを作成（手動キャプチャ）
     console.log('🔵 Payment Intent作成:', { amount, currency: 'jpy' });
     const paymentIntent = await stripe.paymentIntents.create({
@@ -296,14 +296,14 @@ app.post('/api/stripe/authorize-payment', async (req: Request, res: Response) =>
         user_id: userId,
       },
     });
-    
+
     console.log('✅ Payment Intent作成成功:', {
       id: paymentIntent.id,
       status: paymentIntent.status,
       amount: paymentIntent.amount,
     });
-    
-    res.json({ 
+
+    res.json({
       paymentIntentId: paymentIntent.id,
       status: paymentIntent.status,
     });
@@ -397,8 +397,8 @@ app.post('/api/buy-now', async (req: Request, res: Response) => {
     // 4. payment_transactionsテーブルに記録
     const chargeId = capturedPayment.latest_charge
       ? (typeof capturedPayment.latest_charge === 'string'
-          ? capturedPayment.latest_charge
-          : capturedPayment.latest_charge.id)
+        ? capturedPayment.latest_charge
+        : capturedPayment.latest_charge.id)
       : null;
 
     await supabase.from('payment_transactions').insert({
@@ -461,9 +461,9 @@ app.post('/api/buy-now', async (req: Request, res: Response) => {
 app.post('/api/stripe/cancel-authorization', async (req: Request, res: Response) => {
   try {
     const { paymentIntentId } = req.body;
-    
+
     const paymentIntent = await stripe.paymentIntents.cancel(paymentIntentId);
-    
+
     res.json({ success: true, status: paymentIntent.status });
   } catch (error: any) {
     console.error('与信キャンセルエラー:', error);
@@ -477,40 +477,40 @@ app.post('/api/stripe/cancel-authorization', async (req: Request, res: Response)
 app.post('/api/stripe/capture-payment', async (req: Request, res: Response) => {
   try {
     const { paymentIntentId, auctionId } = req.body;
-    
+
     // オークション終了処理
     const { data: auctionResult, error: auctionError } = await supabase.rpc(
       'finalize_auction',
       { p_auction_id: auctionId }
     );
-    
+
     if (auctionError) throw auctionError;
-    
+
     if (!auctionResult || auctionResult.length === 0) {
       throw new Error('落札者がいません');
     }
-    
+
     const { winner_fan_id, winning_amount } = auctionResult[0];
-    
+
     // PaymentIntentをキャプチャ
     const paymentIntent = await stripe.paymentIntents.capture(paymentIntentId);
-    
+
     // purchased_slotsを取得
     const { data: purchasedSlot } = await supabase
       .from('purchased_slots')
       .select('*')
       .eq('auction_id', auctionId)
       .single();
-    
+
     if (!purchasedSlot) throw new Error('購入レコードが見つかりません');
-    
+
     // payment_transactionsに記録
-    const chargeId = paymentIntent.latest_charge 
-      ? (typeof paymentIntent.latest_charge === 'string' 
-          ? paymentIntent.latest_charge 
-          : paymentIntent.latest_charge.id)
+    const chargeId = paymentIntent.latest_charge
+      ? (typeof paymentIntent.latest_charge === 'string'
+        ? paymentIntent.latest_charge
+        : paymentIntent.latest_charge.id)
       : null;
-      
+
     await supabase.from('payment_transactions').insert({
       purchased_slot_id: purchasedSlot.id,
       stripe_payment_intent_id: paymentIntent.id,
@@ -520,14 +520,14 @@ app.post('/api/stripe/capture-payment', async (req: Request, res: Response) => {
       influencer_payout: purchasedSlot.influencer_payout,
       status: 'captured',
     });
-    
+
     // インフルエンサーへの送金（Stripe Connect使用）
     const { data: influencer } = await supabase
       .from('users')
       .select('stripe_account_id')
       .eq('id', purchasedSlot.influencer_user_id)
       .single();
-    
+
     if (influencer?.stripe_account_id) {
       const transfer = await stripe.transfers.create({
         amount: Math.round(purchasedSlot.influencer_payout),
@@ -535,23 +535,23 @@ app.post('/api/stripe/capture-payment', async (req: Request, res: Response) => {
         destination: influencer.stripe_account_id,
         transfer_group: auctionId,
       });
-      
+
       // Transferを記録
       await supabase
         .from('payment_transactions')
         .update({ stripe_transfer_id: transfer.id })
         .eq('stripe_payment_intent_id', paymentIntent.id);
     }
-    
+
     // 統計情報更新
     await supabase.rpc('update_user_statistics', {
       p_fan_id: winner_fan_id,
       p_influencer_id: purchasedSlot.influencer_user_id,
       p_amount: winning_amount,
     });
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       paymentIntent,
       purchasedSlotId: purchasedSlot.id,
     });
@@ -567,7 +567,7 @@ app.post('/api/stripe/capture-payment', async (req: Request, res: Response) => {
 app.post('/api/stripe/create-connect-account', async (req: Request, res: Response) => {
   try {
     const { email, authUserId } = req.body;
-    
+
     const account = await stripe.accounts.create({
       type: 'express',
       email,
@@ -581,25 +581,25 @@ app.post('/api/stripe/create-connect-account', async (req: Request, res: Respons
         auth_user_id: authUserId,
       },
     });
-    
+
     // Supabaseを更新
     const { data: updatedUser, error: updateError } = await supabase
       .from('users')
-      .update({ 
+      .update({
         stripe_account_id: account.id,
         stripe_connect_account_id: account.id,
         stripe_connect_account_status: 'pending'
       })
       .eq('auth_user_id', authUserId)
       .select();
-    
+
     if (updateError) {
       console.error('❌ Supabase更新エラー:', updateError);
       throw updateError;
     }
-    
+
     console.log('✅ Supabase更新成功:', updatedUser);
-    
+
     // オンボーディングリンクを作成
     const accountLink = await stripe.accountLinks.create({
       account: account.id,
@@ -607,8 +607,8 @@ app.post('/api/stripe/create-connect-account', async (req: Request, res: Respons
       return_url: `${process.env.FRONTEND_URL}/mypage`,
       type: 'account_onboarding',
     });
-    
-    res.json({ 
+
+    res.json({
       accountId: account.id,
       onboardingUrl: accountLink.url,
     });
@@ -776,17 +776,35 @@ app.post('/api/stripe/create-login-link', async (req: Request, res: Response) =>
       return res.status(404).json({ error: 'Stripe Connect Account not found' });
     }
 
-    // Express Dashboard Linkを生成
-    const loginLink = await stripe.accounts.createLoginLink(
-      user.stripe_connect_account_id
-    );
+    const accountId = user.stripe_connect_account_id;
 
-    console.log('✅ Login Link生成成功:', loginLink.url);
+    // Stripeアカウントの状態を確認
+    const stripeAccount = await stripe.accounts.retrieve(accountId);
 
-    res.json({
-      url: loginLink.url,
-      expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(), // 5分有効
-    });
+    // 完了済みの場合はダッシュボードリンクを返す
+    if (stripeAccount.charges_enabled && stripeAccount.payouts_enabled) {
+      const loginLink = await stripe.accounts.createLoginLink(accountId);
+      console.log('✅ Login Link生成成功:', loginLink.url);
+
+      res.json({
+        url: loginLink.url,
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(), // 5分有効
+      });
+    } else {
+      // 未完了の場合はオンボーディングリンクを返す
+      console.log('🔵 アカウント未完了のためオンボーディングリンクを生成');
+      const accountLink = await stripe.accountLinks.create({
+        account: accountId,
+        refresh_url: `${process.env.FRONTEND_URL}/mypage?stripe_refresh=true`,
+        return_url: `${process.env.FRONTEND_URL}/mypage?stripe_complete=true`,
+        type: 'account_onboarding',
+      });
+
+      res.json({
+        url: accountLink.url,
+        is_onboarding: true
+      });
+    }
 
   } catch (error: any) {
     console.error('❌ Login Link生成エラー:', error);
@@ -887,53 +905,53 @@ app.post('/api/stripe/create-or-resume-onboarding', async (req: Request, res: Re
 app.post('/api/stripe/influencer-status', async (req: Request, res: Response) => {
   try {
     const { authUserId } = req.body;
-    
+
     console.log('🔵 インフルエンサー状態確認開始:', { authUserId });
-    
+
     // UUIDの形式チェック
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(authUserId)) {
       console.error('❌ 無効なUUID形式:', authUserId);
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Invalid UUID format',
-        received: authUserId 
+        received: authUserId
       });
     }
-    
+
     // ユーザー情報を取得
     const { data: user, error: userError } = await supabase
       .from('users')
       .select('stripe_connect_account_id, stripe_connect_account_status')
       .eq('auth_user_id', authUserId)
       .single();
-    
+
     if (userError) {
       console.error('❌ ユーザー取得エラー:', userError);
-      return res.status(404).json({ 
+      return res.status(404).json({
         error: 'User not found',
-        details: userError.message 
+        details: userError.message
       });
     }
-    
+
     if (!user?.stripe_connect_account_id) {
       console.log('⚠️  Stripe Connect Account ID が設定されていません');
-      return res.json({ 
+      return res.json({
         accountStatus: 'not_setup',
         accountId: null,
         isVerified: false
       });
     }
-    
+
     // Stripeアカウントの状態を確認
     const stripeAccount = await stripe.accounts.retrieve(user.stripe_connect_account_id);
-    
+
     console.log('✅ Stripe Account状態:', {
       id: stripeAccount.id,
       charges_enabled: stripeAccount.charges_enabled,
       payouts_enabled: stripeAccount.payouts_enabled,
       details_submitted: stripeAccount.details_submitted
     });
-    
+
     let accountStatus = 'pending';
     if (stripeAccount.charges_enabled && stripeAccount.payouts_enabled) {
       accountStatus = 'active';
@@ -942,29 +960,29 @@ app.post('/api/stripe/influencer-status', async (req: Request, res: Response) =>
     } else {
       accountStatus = 'incomplete';
     }
-    
+
     // データベースの状態を実際のStripe状態に同期
     if (user.stripe_connect_account_status !== accountStatus) {
       console.log('🔄 Stripe状態を同期中:', {
         db_status: user.stripe_connect_account_status,
         stripe_status: accountStatus
       });
-      
+
       const { error: syncError } = await supabase
         .from('users')
-        .update({ 
+        .update({
           stripe_connect_account_status: accountStatus,
           is_verified: accountStatus === 'active'
         })
         .eq('auth_user_id', authUserId);
-      
+
       if (syncError) {
         console.error('❌ 状態同期エラー:', syncError);
       } else {
         console.log('✅ 状態同期完了:', accountStatus);
       }
     }
-    
+
     res.json({
       accountStatus,
       accountId: stripeAccount.id,
@@ -973,7 +991,7 @@ app.post('/api/stripe/influencer-status', async (req: Request, res: Response) =>
       payoutsEnabled: stripeAccount.payouts_enabled,
       detailsSubmitted: stripeAccount.details_submitted
     });
-    
+
   } catch (error: any) {
     console.error('インフルエンサー状態確認エラー:', error);
     res.status(500).json({ error: error.message });
@@ -985,32 +1003,32 @@ app.post('/api/stripe/influencer-status', async (req: Request, res: Response) =>
 // ============================================
 app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async (req: Request, res: Response) => {
   const sig = req.headers['stripe-signature'] as string;
-  
+
   try {
     const event = stripe.webhooks.constructEvent(
       req.body,
       sig,
       process.env.STRIPE_WEBHOOK_SECRET!
     );
-    
+
     switch (event.type) {
       case 'payment_intent.succeeded':
         // 決済成功時の処理
         console.log('PaymentIntent成功:', event.data.object.id);
         break;
-        
+
       case 'payment_intent.payment_failed':
         // 決済失敗時の処理
         console.log('PaymentIntent失敗:', event.data.object.id);
         await supabase
           .from('payment_transactions')
-          .update({ 
+          .update({
             status: 'failed',
             error_message: (event.data.object as any).last_payment_error?.message,
           })
           .eq('stripe_payment_intent_id', event.data.object.id);
         break;
-        
+
       case 'account.updated':
         // Connectアカウント更新時
         const account = event.data.object as Stripe.Account;
@@ -1020,23 +1038,23 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
           payouts_enabled: account.payouts_enabled,
           details_submitted: account.details_submitted
         });
-        
+
         // アカウント情報を更新
         const updateData: any = {
           stripe_connect_account_id: account.id,
           stripe_connect_account_status: account.charges_enabled && account.payouts_enabled ? 'active' : 'pending'
         };
-        
+
         if (account.charges_enabled && account.payouts_enabled) {
           updateData.is_verified = true;
         }
-        
+
         const { data: updatedUser, error: updateError } = await supabase
           .from('users')
           .update(updateData)
           .eq('stripe_account_id', account.id)
           .select();
-        
+
         if (updateError) {
           console.error('❌ Stripe Connect Account更新エラー:', updateError);
         } else {
@@ -1044,7 +1062,7 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
         }
         break;
     }
-    
+
     res.json({ received: true });
   } catch (error: any) {
     console.error('Webhook処理エラー:', error);
@@ -1058,7 +1076,7 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
 app.put('/api/call-slots/:callSlotId', async (req: Request, res: Response) => {
   try {
     const { callSlotId } = req.params;
-    const { 
+    const {
       authUserId,
       title,
       description,
@@ -1071,8 +1089,8 @@ app.put('/api/call-slots/:callSlotId', async (req: Request, res: Response) => {
       auction_end_time
     } = req.body;
 
-    console.log('🔵 Talk枠更新開始:', { 
-      callSlotId, 
+    console.log('🔵 Talk枠更新開始:', {
+      callSlotId,
       authUserId,
       callSlotIdType: typeof callSlotId,
       callSlotIdLength: callSlotId?.length
@@ -1114,9 +1132,9 @@ app.put('/api/call-slots/:callSlotId', async (req: Request, res: Response) => {
         hint: callSlotError.hint,
         callSlotId
       });
-      return res.status(404).json({ 
+      return res.status(404).json({
         error: 'Talk枠が見つかりません',
-        details: callSlotError.message 
+        details: callSlotError.message
       });
     }
 
@@ -1134,10 +1152,10 @@ app.put('/api/call-slots/:callSlotId', async (req: Request, res: Response) => {
 
     const auctionId = auction?.id || null;
 
-    console.log('✅ Talk枠取得成功:', { 
-      id: callSlot.id, 
-      user_id: callSlot.user_id, 
-      auction_id: auctionId 
+    console.log('✅ Talk枠取得成功:', {
+      id: callSlot.id,
+      user_id: callSlot.user_id,
+      auction_id: auctionId
     });
 
     // 4. 権限確認（インフルエンサーが自分のTalk枠を更新できるか）
@@ -1264,7 +1282,7 @@ app.post('/api/auctions/finalize-ended', async (req: Request, res: Response) => 
             .from('auctions')
             .update({ status: 'ended' })
             .eq('id', auction.auction_id);
-          
+
           results.push({ auction_id: auction.auction_id, status: 'no_bids' });
           continue;
         }
@@ -1353,7 +1371,7 @@ app.post('/api/auctions/finalize-ended', async (req: Request, res: Response) => 
 
     console.log('✅ 全オークション処理完了');
 
-    res.json({ 
+    res.json({
       processed: endedAuctions.length,
       results,
       timestamp: new Date().toISOString(),
