@@ -79,6 +79,8 @@ export const InfluencerEarningsDashboard: React.FC<Props> = ({ authUserId }) => 
       // 現在のタブで遷移する（またはリダイレクトループを防ぐ）
       if (is_onboarding) {
         window.location.href = url;
+        // ページ遷移時はローディング状態を解除しない（画面が切り替わるまで表示維持）
+        return;
       } else {
         // Dashboard（完了済み）の場合は別タブで開く
         // 非同期処理後なので、window.openがブロックされる可能性がある
@@ -86,12 +88,16 @@ export const InfluencerEarningsDashboard: React.FC<Props> = ({ authUserId }) => 
         const newWindow = window.open(url, '_blank');
         if (!newWindow || newWindow.closed || typeof newWindow.closed == 'undefined') {
           window.location.href = url;
+          // フォールバックでページ遷移する場合もローディング維持
+          return;
         }
+
+        // 別タブで開けた場合はローディング解除
+        setIsOpeningDashboard(false);
       }
     } catch (err: any) {
       console.error('Dashboard リンク生成エラー:', err);
       alert('詳細画面への遷移に失敗しました: ' + (err.message || '不明なエラー'));
-    } finally {
       setIsOpeningDashboard(false);
     }
   };
@@ -172,7 +178,7 @@ export const InfluencerEarningsDashboard: React.FC<Props> = ({ authUserId }) => 
           disabled={isOpeningDashboard}
           className="text-sm text-gray-500 hover:text-gray-900 underline underline-offset-4 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
         >
-          {isOpeningDashboard ? '読み込み中...' : 'さらに詳細を確認'}
+          {isOpeningDashboard ? 'ページ遷移中...' : 'さらに詳細を確認'}
         </button>
       </div>
 
