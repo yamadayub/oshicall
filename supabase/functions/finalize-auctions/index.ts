@@ -460,11 +460,24 @@ Deno.serve(async (req) => {
 
             console.log(`✅ purchased_slots記録成功: ${purchasedSlot.id}`);
 
+            // 5.5. call_slotsテーブルのfan_user_idを更新 (これをしないと購入済みTalkに表示されない)
+            const { error: updateCallSlotError } = await supabase
+              .from('call_slots')
+              .update({ fan_user_id: fanUserId })
+              .eq('id', auction.call_slot_id);
+
+            if (updateCallSlotError) {
+              console.error('❌ call_slots更新エラー:', updateCallSlotError);
+              // エラーでも続行
+            } else {
+              console.log('✅ call_slots情報更新成功 (fan_user_id set)');
+            }
+
             // 6. payment_transactionsテーブルに記録
-            const chargeId = capturedPayment.latest_charge 
-              ? (typeof capturedPayment.latest_charge === 'string' 
-                  ? capturedPayment.latest_charge 
-                  : capturedPayment.latest_charge.id)
+            const chargeId = capturedPayment.latest_charge
+              ? (typeof capturedPayment.latest_charge === 'string'
+                ? capturedPayment.latest_charge
+                : capturedPayment.latest_charge.id)
               : null;
 
             await supabase.from('payment_transactions').insert({
@@ -742,6 +755,18 @@ Deno.serve(async (req) => {
                   } else {
                     console.log(`✅ purchased_slots作成成功: ${purchasedSlot.id}`);
                   }
+
+                  // call_slotsテーブルのfan_user_idも更新しておく
+                  const { error: updateCallSlotError } = await supabase
+                    .from('call_slots')
+                    .update({ fan_user_id: fanUserId })
+                    .eq('id', auction.call_slot_id);
+
+                  if (updateCallSlotError) {
+                    console.error('❌ call_slots更新エラー(recovery):', updateCallSlotError);
+                  } else {
+                    console.log('✅ call_slots情報更新成功(recovery) (fan_user_id set)');
+                  }
                 } else {
                   console.log(`ℹ️ purchased_slotsレコードは既に存在: ${existingSlot.id}`);
                 }
@@ -782,7 +807,7 @@ Deno.serve(async (req) => {
 
     console.log('✅ 全オークション処理完了');
 
-    return new Response(JSON.stringify({ 
+    return new Response(JSON.stringify({
       processed: endedAuctions.length,
       results,
       timestamp: new Date().toISOString(),

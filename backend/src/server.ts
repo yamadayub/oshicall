@@ -374,6 +374,19 @@ app.post('/api/buy-now', async (req: Request, res: Response) => {
 
     console.log('✅ オークション情報更新成功');
 
+    // 3.5. call_slotsテーブルのfan_user_idを更新 (これをしないと購入済みTalkに表示されない)
+    const { error: updateCallSlotError } = await supabase
+      .from('call_slots')
+      .update({ fan_user_id: userId })
+      .eq('id', auction.call_slot_id);
+
+    if (updateCallSlotError) {
+      console.error('❌ call_slots更新エラー:', updateCallSlotError);
+      // エラーでも続行（購入自体は成立させるが、ログに残す）
+    } else {
+      console.log('✅ call_slots情報更新成功 (fan_user_id set)');
+    }
+
     // 4. purchased_slotsテーブルに記録
     const { data: purchasedSlot, error: purchaseError } = await supabase
       .from('purchased_slots')
