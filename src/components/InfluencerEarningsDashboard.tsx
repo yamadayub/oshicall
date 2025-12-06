@@ -62,11 +62,35 @@ export const InfluencerEarningsDashboard: React.FC<Props> = ({ authUserId }) => 
   const handleOpenStripeDashboard = async () => {
     try {
       setIsOpeningDashboard(true);
-      const { url } = await createStripeDashboardLink(authUserId);
-      window.open(url, '_blank');
+
+      // ポップアップブロッカー対策: Safari等では非同期処理後のwindow.openがブロックされることがあるため
+      // ユーザーアクションの直後にウィンドウを開いておく（後でURLを設定）
+      // ただし、モバイルの場合は別タブではなく現在のタブで遷移した方が良い場合もある
+
+      const { url, is_onboarding } = await createStripeDashboardLink(authUserId);
+
+      if (!url) {
+        throw new Error('URLが取得できませんでした');
+      }
+
+      console.log('🔗 Stripe Redirect:', { url, is_onboarding });
+
+      // オンボーディング（未完了）の場合は、元の画面に戻ってくる必要があるため
+      // 現在のタブで遷移する（またはリダイレクトループを防ぐ）
+      if (is_onboarding) {
+        window.location.href = url;
+      } else {
+        // Dashboard（完了済み）の場合は別タブで開く
+        // 非同期処理後なので、window.openがブロックされる可能性がある
+        // 失敗した場合は現在のタブで開く
+        const newWindow = window.open(url, '_blank');
+        if (!newWindow || newWindow.closed || typeof newWindow.closed == 'undefined') {
+          window.location.href = url;
+        }
+      }
     } catch (err: any) {
       console.error('Dashboard リンク生成エラー:', err);
-      alert('詳細画面を開けませんでした。もう一度お試しください。');
+      alert('詳細画面への遷移に失敗しました: ' + (err.message || '不明なエラー'));
     } finally {
       setIsOpeningDashboard(false);
     }
