@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, CreditCard } from 'lucide-react';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import stripePromise from '../lib/stripe';
@@ -11,18 +11,15 @@ interface CardRegistrationModalProps {
   onSuccess: () => void;
 }
 
-interface CardRegistrationFormProps extends Omit<CardRegistrationModalProps, 'isOpen'> {
-  onAuthenticatingChange?: (isAuthenticating: boolean) => void;
-}
+interface CardRegistrationFormProps extends Omit<CardRegistrationModalProps, 'isOpen'> { }
 
-function CardRegistrationForm({ onClose, onSuccess, onAuthenticatingChange }: CardRegistrationFormProps) {
+function CardRegistrationForm({ onClose, onSuccess }: CardRegistrationFormProps) {
   const stripe = useStripe();
   const elements = useElements();
   const { user, supabaseUser, refreshUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [isReady, setIsReady] = useState(false);
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
 
   useEffect(() => {
     // Stripe Elementsが読み込まれるまで待つ
@@ -30,8 +27,8 @@ function CardRegistrationForm({ onClose, onSuccess, onAuthenticatingChange }: Ca
       console.log('✅ Stripe Elements読み込み完了');
       setIsReady(true);
     } else {
-      console.log('⏳ Stripe Elements読み込み中...', { 
-        stripe: !!stripe, 
+      console.log('⏳ Stripe Elements読み込み中...', {
+        stripe: !!stripe,
         elements: !!elements,
         publishableKey: !!(import.meta.env.STRIPE_PUBLISHABLE_KEY || import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
       });
@@ -51,12 +48,12 @@ function CardRegistrationForm({ onClose, onSuccess, onAuthenticatingChange }: Ca
 
       // 1. Stripe顧客を作成（まだ作成されていない場合）
       let customerId = supabaseUser.stripe_customer_id;
-      
+
       if (!customerId) {
         const customerResult = await createStripeCustomer(
           user.email || '',
-          supabaseUser.display_name,
-          user.id
+          supabaseUser.display_name || '',
+          user.id || ''
         );
         customerId = customerResult.customerId;
       }
@@ -70,12 +67,7 @@ function CardRegistrationForm({ onClose, onSuccess, onAuthenticatingChange }: Ca
         throw new Error('カード情報の取得に失敗しました');
       }
 
-      // 3D Secure認証が開始される可能性があるため、認証中フラグを設定
-      // 少し遅延を入れて、Stripeの認証ダイアログが表示されるのを待つ
-      await new Promise(resolve => setTimeout(resolve, 100));
-      setIsAuthenticating(true);
-      onAuthenticatingChange?.(true);
-      
+      // 3D Secure認証が開始される可能性がある
       const { error: stripeError, setupIntent } = await stripe.confirmCardSetup(
         clientSecret,
         {
@@ -88,12 +80,8 @@ function CardRegistrationForm({ onClose, onSuccess, onAuthenticatingChange }: Ca
           },
         }
       );
-      
-      // 認証処理が完了したらフラグを解除
-      // 少し遅延を入れて、Stripeの認証ダイアログが完全に閉じられるのを待つ
-      await new Promise(resolve => setTimeout(resolve, 300));
-      setIsAuthenticating(false);
-      onAuthenticatingChange?.(false);
+
+      // 認証処理が完了
 
       if (stripeError) {
         throw new Error(stripeError.message);
@@ -119,18 +107,18 @@ function CardRegistrationForm({ onClose, onSuccess, onAuthenticatingChange }: Ca
         // 6. ユーザー情報を再取得（確実に更新されるまで待つ）
         console.log('🔵 ユーザー情報を再取得中...');
         await refreshUser();
-        
+
         // 少し待機してから再度取得（Supabase同期を確実にする）
         await new Promise(resolve => setTimeout(resolve, 500));
         await refreshUser();
-        
+
         // 更新後のユーザー情報を確認（refreshUser後に再取得）
         await new Promise(resolve => setTimeout(resolve, 300));
         // 最新のユーザー情報を取得するため、再度refreshUserを呼び出す
         await refreshUser();
-        
+
         console.log('🔍 カード登録後の処理完了');
-        
+
         console.log('✅ カード登録完了！');
 
         onSuccess();
@@ -138,11 +126,6 @@ function CardRegistrationForm({ onClose, onSuccess, onAuthenticatingChange }: Ca
     } catch (err: any) {
       console.error('カード登録エラー:', err);
       setError(err.message || 'カード登録に失敗しました');
-      // エラー時も認証状態を解除（少し遅延を入れて、Stripeの認証ダイアログが閉じられるのを待つ）
-      setTimeout(() => {
-        setIsAuthenticating(false);
-        onAuthenticatingChange?.(false);
-      }, 300);
     } finally {
       setLoading(false);
     }
@@ -224,84 +207,25 @@ function CardRegistrationForm({ onClose, onSuccess, onAuthenticatingChange }: Ca
   );
 }
 
-// CardRegistrationFormをラップして、認証状態を親コンポーネントに伝える
-function CardRegistrationFormWrapper({ onClose, onSuccess }: Omit<CardRegistrationModalProps, 'isOpen'>) {
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
-  
-  return (
-    <>
-      <CardRegistrationForm 
-        onClose={onClose} 
-        onSuccess={onSuccess}
-        onAuthenticatingChange={setIsAuthenticating}
-      />
-      {/* 認証状態をグローバルに伝えるための非表示要素 */}
-      <div 
-        id="stripe-3ds-authenticating" 
-        data-authenticating={isAuthenticating ? 'true' : 'false'}
-        style={{ display: 'none' }}
-      />
-    </>
-  );
-}
+// CardRegistrationFormWrapper was removed as it's no longer needed
 
 export default function CardRegistrationModal({ isOpen, onClose, onSuccess }: CardRegistrationModalProps) {
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
-  
-  // 認証状態を監視
-  useEffect(() => {
-    if (!isOpen) return;
-    
-    const checkAuthenticating = () => {
-      const indicator = document.getElementById('stripe-3ds-authenticating');
-      if (indicator) {
-        setIsAuthenticating(indicator.getAttribute('data-authenticating') === 'true');
-      }
-    };
-    
-    const interval = setInterval(checkAuthenticating, 100);
-    return () => clearInterval(interval);
-  }, [isOpen]);
-
   if (!isOpen) return null;
 
   return (
-    <div 
+    <div
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4"
-      style={{ 
-        // Stripeの3D Secure認証ダイアログが表示される際に干渉しないようにz-indexを下げる
-        // Stripeの認証ダイアログは通常 z-index: 2147483647 で表示されるため、低い値に設定
-        zIndex: 50,
-        // Stripeの認証ダイアログが表示される際に、オーバーレイが干渉しないように
-        // 認証中のみpointer-eventsをnoneに設定
-        pointerEvents: isAuthenticating ? 'none' : 'auto'
-      }}
+      style={{ zIndex: 50 }}
       onClick={(e) => {
-        // オーバーレイをクリックした場合のみ閉じる（認証中は閉じられない）
-        if (!isAuthenticating && e.target === e.currentTarget) {
+        if (e.target === e.currentTarget) {
           onClose();
         }
       }}
     >
-      <div 
+      <div
         className="bg-white rounded-2xl max-w-md w-full p-8 relative shadow-2xl"
-        style={{ 
-          // Stripeの認証ダイアログより低いz-indexに設定
-          zIndex: 51,
-          // 認証中はモーダルコンテンツを完全に非表示にして干渉を防ぐ
-          visibility: isAuthenticating ? 'hidden' : 'visible',
-          // 認証中はモーダルコンテンツのpointer-eventsも無効化
-          pointerEvents: isAuthenticating ? 'none' : 'auto'
-        }}
-        onClick={(e) => {
-          // 認証中はクリックイベントを完全にブロック
-          if (isAuthenticating) {
-            e.preventDefault();
-            e.stopPropagation();
-            return;
-          }
-          e.stopPropagation();
-        }}
+        style={{ zIndex: 51 }}
+        onClick={(e) => e.stopPropagation()}
       >
         <button
           onClick={onClose}
@@ -323,7 +247,7 @@ export default function CardRegistrationModal({ isOpen, onClose, onSuccess }: Ca
         </div>
 
         {stripePromise ? (
-          <Elements 
+          <Elements
             key={isOpen ? 'elements-key' : undefined}
             stripe={stripePromise}
             options={{
@@ -332,7 +256,7 @@ export default function CardRegistrationModal({ isOpen, onClose, onSuccess }: Ca
               },
             }}
           >
-            <CardRegistrationFormWrapper onClose={onClose} onSuccess={onSuccess} />
+            <CardRegistrationForm onClose={onClose} onSuccess={onSuccess} />
           </Elements>
         ) : (
           <div className="space-y-6">
