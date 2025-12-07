@@ -74,9 +74,11 @@ export default function Home() {
                 average_rating
               )
             )
+            )
           `)
-          .eq('status', 'active')
-          .order('end_time', { ascending: false });
+          .in('status', ['active', 'ended'])
+          .order('end_time', { ascending: false })
+          .limit(50); // Limit to 50 for performance
 
         if (auctionError) {
           console.error('オークションデータ取得エラー:', auctionError);
@@ -90,41 +92,41 @@ export default function Home() {
         console.log('📊 Supabaseから取得したデータ:', auctionData);
         console.log(`📊 取得件数: ${auctionData?.length || 0}件`);
 
-          // auctionsテーブルのデータをTalkSession形式に変換
-          const talkSessions: TalkSession[] = (auctionData || []).map((item: any) => {
-            const callSlot = item.call_slots;
-            const user = callSlot?.users;
+        // auctionsテーブルのデータをTalkSession形式に変換
+        const talkSessions: TalkSession[] = (auctionData || []).map((item: any) => {
+          const callSlot = item.call_slots;
+          const user = callSlot?.users;
 
-            return {
-              id: item.call_slot_id,
-              influencer_id: callSlot?.user_id,
-              influencer: {
-                id: callSlot?.user_id,
-                name: user?.display_name || '不明',
-                username: user?.display_name || '不明',
-                avatar_url: user?.profile_image_url || '/images/talks/default.jpg',
-                description: user?.bio || '',
-                follower_count: 0,
-                total_earned: 0,
-                total_talks: user?.total_calls_completed || 0,
-                rating: user?.average_rating || 0,
-                created_at: new Date().toISOString(),
-              },
-              title: callSlot?.title || `${user?.display_name}とのTalk`,
-              description: callSlot?.description || '',
-              host_message: user?.bio || callSlot?.description || `${user?.display_name}とお話ししましょう！`,
-              start_time: callSlot?.scheduled_start_time,
-              end_time: new Date(new Date(callSlot?.scheduled_start_time).getTime() + (callSlot?.duration_minutes || 30) * 60000).toISOString(),
-              auction_end_time: item.end_time,
-              starting_price: callSlot?.starting_price,
-              current_highest_bid: item.current_highest_bid || callSlot?.starting_price,
-              status: item.status === 'active' ? 'upcoming' : 'ended',
-              auction_status: item.status,
+          return {
+            id: item.call_slot_id,
+            influencer_id: callSlot?.user_id,
+            influencer: {
+              id: callSlot?.user_id,
+              name: user?.display_name || '不明',
+              username: user?.display_name || '不明',
+              avatar_url: user?.profile_image_url || '/images/talks/default.jpg',
+              description: user?.bio || '',
+              follower_count: 0,
+              total_earned: 0,
+              total_talks: user?.total_calls_completed || 0,
+              rating: user?.average_rating || 0,
               created_at: new Date().toISOString(),
-              detail_image_url: callSlot?.thumbnail_url || user?.profile_image_url || '/images/talks/default.jpg',
-              is_female_only: false,
-            };
-          });
+            },
+            title: callSlot?.title || `${user?.display_name}とのTalk`,
+            description: callSlot?.description || '',
+            host_message: user?.bio || callSlot?.description || `${user?.display_name}とお話ししましょう！`,
+            start_time: callSlot?.scheduled_start_time,
+            end_time: new Date(new Date(callSlot?.scheduled_start_time).getTime() + (callSlot?.duration_minutes || 30) * 60000).toISOString(),
+            auction_end_time: item.end_time,
+            starting_price: callSlot?.starting_price,
+            current_highest_bid: item.current_highest_bid || callSlot?.starting_price,
+            status: item.status === 'active' ? 'upcoming' : 'ended',
+            auction_status: item.status,
+            created_at: new Date().toISOString(),
+            detail_image_url: callSlot?.thumbnail_url || user?.profile_image_url || '/images/talks/default.jpg',
+            is_female_only: false,
+          };
+        });
 
         console.log(`✅ ${talkSessions.length}件のTalk枠に変換しました`);
         setTalks(talkSessions);
