@@ -63,7 +63,8 @@ export const getPurchasedTalks = async (userId: string) => {
       // 予定のTalkか過去のTalkかを判定
       const now = new Date();
       const talkDate = new Date(callSlot.scheduled_start_time);
-      const isUpcoming = talkDate > now && purchasedSlot?.call_status !== 'completed';
+      const talkEndTime = new Date(new Date(callSlot.scheduled_start_time).getTime() + (callSlot.duration_minutes || 30) * 60000);
+      const isUpcoming = talkEndTime > now && purchasedSlot?.call_status !== 'completed';
 
       // 詳細ログ: 各Talk枠について、call_slotsとusersテーブルの情報をまとめて出力
       console.log('📋 [getPurchasedTalks] Talk枠情報:');
@@ -111,7 +112,7 @@ export const getPurchasedTalks = async (userId: string) => {
         auction_end_time: callSlot.scheduled_start_time || new Date().toISOString(),
         starting_price: purchasedSlot?.winning_bid_amount || 0,
         current_highest_bid: purchasedSlot?.winning_bid_amount || 0,
-        status: isUpcoming ? 'won' : 'completed',
+        status: (isUpcoming ? 'won' : 'completed') as TalkSession['status'],
         created_at: purchasedSlot?.purchased_at || new Date().toISOString(),
         detail_image_url: callSlot.thumbnail_url || influencer?.profile_image_url || '/images/talks/default.jpg',
         is_female_only: false,
@@ -383,7 +384,7 @@ export const getInfluencerHostedTalks = async (userId: string) => {
         auction_end_time: auction?.auction_end_time || auction?.end_time || callSlot.scheduled_start_time || new Date().toISOString(),
         starting_price: purchasedSlot?.winning_bid_amount || auction?.current_highest_bid || callSlot.starting_price || 0,
         current_highest_bid: purchasedSlot?.winning_bid_amount || auction?.current_highest_bid || callSlot.starting_price || 0,
-        status: isAuctionActive ? 'active' : (purchasedSlot ? (isUpcoming ? 'won' : 'completed') : 'upcoming'),
+        status: (isAuctionActive ? 'active' : (purchasedSlot ? (isUpcoming ? 'won' : 'completed') : 'upcoming')) as TalkSession['status'],
         call_status: purchasedSlot?.call_status, // purchased_slots.call_statusを追加
         created_at: purchasedSlot?.purchased_at || new Date().toISOString(),
         detail_image_url: callSlot.thumbnail_url || host?.profile_image_url || '/images/talks/default.jpg',

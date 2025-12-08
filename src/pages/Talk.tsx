@@ -83,8 +83,9 @@ export default function Talk() {
       return;
     }
 
-    // if purchased_slot_id is missing, try to find it (especially for influencers)
-    if (isInfluencer) {
+    // if purchased_slot_id is missing, try to find it (for both influencers and fans)
+    // if (isInfluencer) { // Removed restriction so fans can also find their slot
+    if (true) {
       try {
         const { data, error } = await supabase
           .from('purchased_slots')
