@@ -120,7 +120,7 @@ export default function Home() {
             auction_end_time: item.end_time,
             starting_price: callSlot?.starting_price,
             current_highest_bid: item.current_highest_bid || callSlot?.starting_price,
-            status: item.status === 'active' ? 'upcoming' : 'ended',
+            status: item.status === 'active' ? 'active' : 'completed',
             auction_status: item.status,
             created_at: new Date().toISOString(),
             detail_image_url: callSlot?.thumbnail_url || user?.profile_image_url || '/images/talks/default.jpg',
@@ -162,8 +162,8 @@ export default function Home() {
 
   // 優先順位に基づいてソート
   const sortedTalks = [...filteredTalks].sort((a, b) => {
-    const aAuctionStatus = (a as any).auction_status || 'ended';
-    const bAuctionStatus = (b as any).auction_status || 'ended';
+    const aAuctionStatus = a.auction_status || 'ended';
+    const bAuctionStatus = b.auction_status || 'ended';
     const aIsFollowing = followingInfluencerIds.has(a.influencer_id);
     const bIsFollowing = followingInfluencerIds.has(b.influencer_id);
 
@@ -178,10 +178,10 @@ export default function Home() {
     if (aIsFollowing && !bIsFollowing) return -1;
     if (!aIsFollowing && bIsFollowing) return 1;
 
-    // 3. 同じグループ内ではオークション終了時刻が近い順にソート
-    const aEndTime = new Date(a.auction_end_time).getTime();
-    const bEndTime = new Date(b.auction_end_time).getTime();
-    return aEndTime - bEndTime;
+    // 3. 同じグループ内ではTalk開始時間が現在時刻に近いもの（昇順）を優先
+    const aStartTime = new Date(a.start_time).getTime();
+    const bStartTime = new Date(b.start_time).getTime();
+    return aStartTime - bStartTime;
   });
 
   return (

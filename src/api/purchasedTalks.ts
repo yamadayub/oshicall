@@ -144,24 +144,12 @@ export const getPurchasedTalks = async (userId: string) => {
 
 export const getUpcomingPurchasedTalks = async (userId: string) => {
   const allTalks = await getPurchasedTalks(userId);
-  const now = new Date();
-
-  return allTalks.filter(talk => {
-    // 終了時刻を基準に判定（終了時刻が現在時刻より未来の場合は「予定」）
-    const talkEndTime = new Date(talk.end_time);
-    return talkEndTime > now && talk.status === 'won';
-  });
+  return allTalks.filter(talk => talk.status === 'won');
 };
 
 export const getCompletedPurchasedTalks = async (userId: string) => {
   const allTalks = await getPurchasedTalks(userId);
-  const now = new Date();
-
-  return allTalks.filter(talk => {
-    // 終了時刻を基準に判定（終了時刻が現在時刻より過去の場合は「過去の実績」）
-    const talkEndTime = new Date(talk.end_time);
-    return talkEndTime <= now || talk.status === 'completed';
-  });
+  return allTalks.filter(talk => talk.status === 'completed');
 };
 
 // インフルエンサー用：ホストするTalk（販売済みスロット + オークション期間中のスロット）を取得
