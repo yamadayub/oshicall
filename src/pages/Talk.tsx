@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { getUpcomingPurchasedTalks, getCompletedPurchasedTalks, getUpcomingHostedTalks, getCompletedHostedTalks } from '../api/purchasedTalks';
 import TalkCard from '../components/TalkCard';
 import { TalkSession } from '../types';
+import { supabase } from '../lib/supabase';
 
 export default function Talk() {
   const navigate = useNavigate();
@@ -71,14 +72,37 @@ export default function Talk() {
     loadTalks();
   }, [supabaseUser?.id, isInfluencer]);
 
-  const handleTalkSelect = (talk: TalkSession) => {
+
+
+  // ... (existing imports)
+
+  const handleTalkSelect = async (talk: TalkSession) => {
     // Navigate to the call page if purchased_slot_id exists
     if (talk.purchased_slot_id) {
       navigate(`/call/${talk.purchased_slot_id}`);
-    } else {
-      // Fallback to live-talk if no purchased_slot_id (shouldn't happen for purchased talks)
-      navigate(`/live-talk/${talk.id}`);
+      return;
     }
+
+    // if purchased_slot_id is missing, try to find it (especially for influencers)
+    if (isInfluencer) {
+      try {
+        const { data, error } = await supabase
+          .from('purchased_slots')
+          .select('id')
+          .eq('call_slot_id', talk.id)
+          .maybeSingle();
+
+        if (!error && data) {
+          navigate(`/call/${data.id}`);
+          return;
+        }
+      } catch (err) {
+        console.error('Error fetching purchased slot:', err);
+      }
+    }
+
+    // Fallback to talk-detail instead of live-talk for unpurchased/hosting talks
+    navigate(`/talk/${talk.id}`);
   };
 
   const tabs = [
