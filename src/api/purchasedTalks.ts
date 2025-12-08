@@ -144,7 +144,7 @@ export const getPurchasedTalks = async (userId: string) => {
 export const getUpcomingPurchasedTalks = async (userId: string) => {
   const allTalks = await getPurchasedTalks(userId);
   const now = new Date();
-  
+
   return allTalks.filter(talk => {
     // 終了時刻を基準に判定（終了時刻が現在時刻より未来の場合は「予定」）
     const talkEndTime = new Date(talk.end_time);
@@ -230,7 +230,7 @@ export const getInfluencerHostedTalks = async (userId: string) => {
       const hasPurchasedSlot = callSlot.fan_user_id !== null && callSlot.fan_user_id !== undefined;
       // 公開済みのスロット（オークションが開始される前でも表示）
       const hasPublishedSlot = callSlot.is_published === true;
-      
+
       // オークションが存在する、または落札済み、または公開済みのスロットを表示
       return hasAuction || hasPurchasedSlot || hasPublishedSlot;
     });
@@ -274,7 +274,7 @@ export const getInfluencerHostedTalks = async (userId: string) => {
           'エラー詳細': fanError.details,
           'エラーヒント': fanError.hint,
           '検索したuser_idリスト': uniqueFanUserIds,
-          '考えられる原因': fanError.code === 'PGRST301' || fanError.code === '42501' 
+          '考えられる原因': fanError.code === 'PGRST301' || fanError.code === '42501'
             ? 'RLS（Row Level Security）ポリシーによりアクセスが拒否されています。sql/fixes/add_influencer_view_fan_from_call_slots.sqlを実行してください。'
             : 'その他のエラー',
         });
@@ -309,7 +309,7 @@ export const getInfluencerHostedTalks = async (userId: string) => {
     const talkSessions: TalkSession[] = filteredCallSlots.map((callSlot: any) => {
       const purchasedSlot = callSlot.purchased_slots?.[0]; // 1:1関係
       const auction = Array.isArray(callSlot.auctions) ? callSlot.auctions[0] : callSlot.auctions;
-      
+
       // call_slotsからuser_id（ホスト=自分）とfan_user_id（落札者）を取得
       const hostUserId = callSlot.user_id; // ホスト（インフルエンサー）のID
       const fanUserId = callSlot.fan_user_id; // 落札者（ファン）のID
@@ -320,7 +320,7 @@ export const getInfluencerHostedTalks = async (userId: string) => {
       const now = new Date();
       const talkDate = new Date(callSlot.scheduled_start_time);
       const talkEndTime = new Date(new Date(callSlot.scheduled_start_time).getTime() + (callSlot.duration_minutes || 30) * 60000);
-      
+
       // オークション期間中かどうかを判定
       const isAuctionActive = auction && (auction.status === 'active' || auction.status === 'scheduled');
       const isUpcoming = (talkEndTime > now && purchasedSlot?.call_status !== 'completed') || isAuctionActive;
@@ -426,8 +426,9 @@ export const getUpcomingHostedTalks = async (userId: string) => {
       return true;
     }
 
-    // 落札済みのTalk枠の場合：statusがplanned/liveで、end_timeを迎えていない
-    const isActiveStatus = talk.status === 'planned' || talk.status === 'live';
+    // 落札済みのTalk枠の場合：statusがwonで、end_timeを迎えていない
+    // または、まだ落札されていないが公開されている枠（upcoming）
+    const isActiveStatus = talk.status === 'won' || talk.status === 'upcoming';
     const hasNotEnded = new Date(talk.end_time) > now;
 
     return isActiveStatus && hasNotEnded;
