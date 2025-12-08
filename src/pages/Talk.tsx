@@ -76,8 +76,8 @@ export default function Talk() {
     if (talk.purchased_slot_id) {
       navigate(`/call/${talk.purchased_slot_id}`);
     } else {
-      // Fallback to live-talk if no purchased_slot_id (shouldn't happen for purchased talks)
-      navigate(`/live-talk/${talk.id}`);
+      // Fallback to talk-detail instead of live-talk for unpurchased/hosting talks
+      navigate(`/talk/${talk.id}`);
     }
   };
 
@@ -112,11 +112,10 @@ export default function Talk() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center space-x-2 py-4 border-b-2 transition-colors ${
-                  activeTab === tab.id
+                className={`flex items-center space-x-2 py-4 border-b-2 transition-colors ${activeTab === tab.id
                     ? 'border-pink-500 text-pink-600'
                     : 'border-transparent text-gray-600 hover:text-gray-800'
-                }`}
+                  }`}
               >
                 <tab.icon className="h-5 w-5" />
                 <span className="font-medium">{tab.label}</span>
@@ -184,7 +183,7 @@ export default function Talk() {
           {activeTab === 'history' && (
             <div className="space-y-6">
               <h2 className="text-xl font-bold text-gray-800">過去のTalk実績</h2>
-              
+
               {isLoading ? (
                 <div className="space-y-4">
                   {[1, 2, 3].map((i) => (
