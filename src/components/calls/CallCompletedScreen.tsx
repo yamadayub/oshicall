@@ -96,9 +96,9 @@ export default function CallCompletedScreen({
         {/* ボタン */}
         <button
           onClick={onNavigate}
-          className="w-full flex items-center justify-center space-x-2 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl font-bold text-lg hover:from-pink-600 hover:to-purple-700 transition-all duration-200 shadow-lg transform hover:scale-105"
+          className="w-full flex items-center justify-center space-x-2 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl font-bold text-lg hover:from-pink-600 hover:to-purple-700 transition-all duration-200 shadow-lg transform hover:scale-105 whitespace-normal h-auto"
         >
-          <Home className="h-5 w-5" />
+          <Home className="h-5 w-5 flex-shrink-0" />
           <span>
             {userType === 'influencer' ? 'ダッシュボードに戻る' : '次へ進む'}
           </span>

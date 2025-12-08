@@ -74,71 +74,46 @@ export default function InfluencerDashboard() {
 
   return (
     <div className="space-y-6 py-6">
-      {/* ヘッダー */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent">
-            インフルエンサーダッシュボード
-          </h1>
-          <p className="text-gray-600 mt-2">あなたのTalk枠を管理</p>
-        </div>
+      {/* ヘッダー (Minimal: Title removed, Create button moved/styled) */}
+      <div className="flex justify-end items-center mb-6">
         <button
           onClick={() => setShowCreateForm(true)}
-          className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-lg font-medium hover:from-pink-600 hover:to-purple-700 transition-all duration-200 shadow-md"
+          className="flex items-center space-x-2 px-4 py-2 bg-black text-white rounded-full text-sm font-medium hover:bg-gray-800 transition-all duration-200 shadow-sm"
         >
-          <Plus className="h-5 w-5" />
-          <span>新しいTalk枠を作成</span>
+          <Plus className="h-4 w-4" />
+          <span>Talk枠を作成</span>
         </button>
       </div>
 
-      {/* 統計カード */}
-      <div className="grid md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">総収益</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">
-                ¥{currentUser.total_earnings.toLocaleString()}
-              </p>
-            </div>
-            <DollarSign className="h-8 w-8 text-green-500" />
+      {/* 統計カード (Minimal Design) */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+        <div className="bg-gray-50 rounded-lg p-4">
+          <p className="text-xs text-gray-500 mb-1">総収益</p>
+          <p className="text-xl font-bold text-gray-900">
+            ¥{currentUser.total_earnings.toLocaleString()}
+          </p>
+        </div>
+
+        <div className="bg-gray-50 rounded-lg p-4">
+          <p className="text-xs text-gray-500 mb-1">完了数</p>
+          <p className="text-xl font-bold text-gray-900">
+            {currentUser.total_calls_completed}
+          </p>
+        </div>
+
+        <div className="bg-gray-50 rounded-lg p-4">
+          <p className="text-xs text-gray-500 mb-1">評価</p>
+          <div className="flex items-center space-x-1">
+            <span className="text-xl font-bold text-gray-900">{currentUser.average_rating?.toFixed(1) || '-'}</span>
+            <span className="text-sm">⭐</span>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">完了通話数</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">
-                {currentUser.total_calls_completed}
-              </p>
-            </div>
-            <Users className="h-8 w-8 text-blue-500" />
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">平均評価</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">
-                {currentUser.average_rating?.toFixed(1) || '-'}
-              </p>
-            </div>
-            <span className="text-2xl">⭐</span>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Talk枠数</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">
-                {callSlots.length}
-              </p>
-            </div>
-            <Calendar className="h-8 w-8 text-purple-500" />
-          </div>
+        <div className="bg-gray-50 rounded-lg p-4">
+          <p className="text-xs text-gray-500 mb-1">枠数</p>
+          <p className="text-xl font-bold text-gray-900">
+            {callSlots.length}
+          </p>
         </div>
       </div>
 

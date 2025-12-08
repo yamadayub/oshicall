@@ -76,9 +76,9 @@ export default function CallWaitingRoom({
   useEffect(() => {
     const checkPermissions = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: true, 
-          audio: true 
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true
         });
         setCameraPermission(true);
         setMicPermission(true);
@@ -208,7 +208,7 @@ export default function CallWaitingRoom({
         {/* デバイスチェック */}
         <div className="bg-white rounded-2xl shadow-xl p-6 mb-6">
           <h3 className="text-lg font-bold text-gray-900 mb-4">接続チェック</h3>
-          
+
           <div className="space-y-3">
             <div className="flex items-center space-x-3">
               <Video className={`h-5 w-5 ${cameraPermission ? 'text-green-500' : 'text-gray-400'}`} />
@@ -254,7 +254,7 @@ export default function CallWaitingRoom({
         {status && (
           <div className="bg-white rounded-2xl shadow-xl p-6 mb-6">
             <h3 className="text-lg font-bold text-gray-900 mb-4">参加状況</h3>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div className={`p-4 rounded-lg border-2 ${status.participants.influencer_joined ? 'border-green-500 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
                 <p className="text-sm text-gray-600 mb-1">インフルエンサー</p>
@@ -277,9 +277,13 @@ export default function CallWaitingRoom({
         <button
           onClick={handleJoinClick}
           disabled={!canJoin || !cameraPermission || !micPermission}
-          className="w-full py-6 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-2xl font-bold text-xl hover:from-pink-600 hover:to-purple-700 transition-all duration-200 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 disabled:transform-none"
+          className="w-full py-6 md:py-6 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-2xl font-bold text-lg md:text-xl hover:from-pink-600 hover:to-purple-700 transition-all duration-200 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 disabled:transform-none flex flex-col md:flex-row items-center justify-center gap-2 whitespace-normal h-auto min-h-[80px]"
         >
-          {timeUntilStart <= 0 ? '🎥 通話を開始する' : `⏰ ${formatCountdown(timeUntilStart)}後に開始できます`}
+          {timeUntilStart <= 0 ? (
+            <span className="flex items-center gap-2">🎥 通話を開始する</span>
+          ) : (
+            <span className="text-center">⏰ {formatCountdown(timeUntilStart)}後に開始できます</span>
+          )}
         </button>
 
         {!canJoin && timeUntilStart > 0 && (
