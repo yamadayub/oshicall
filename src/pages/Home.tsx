@@ -72,6 +72,9 @@ export default function Home() {
                 profile_image_url,
                 total_calls_completed,
                 average_rating
+              ),
+              purchased_slots(
+                call_status
               )
             )
             )
@@ -96,6 +99,11 @@ export default function Home() {
         const talkSessions: TalkSession[] = (auctionData || []).map((item: any) => {
           const callSlot = item.call_slots;
           const user = callSlot?.users;
+          const purchasedSlot = callSlot?.purchased_slots?.[0]; // 1:1 assumption for this view or take first
+          const callStatus = purchasedSlot?.call_status;
+
+          // Talk完了判定: call_statusが'completed'なら完了
+          const isTalkCompleted = callStatus === 'completed';
 
           return {
             id: item.call_slot_id,
@@ -120,8 +128,9 @@ export default function Home() {
             auction_end_time: item.end_time,
             starting_price: callSlot?.starting_price,
             current_highest_bid: item.current_highest_bid || callSlot?.starting_price,
-            status: item.status === 'active' ? 'active' : 'completed',
+            status: isTalkCompleted ? 'completed' : (item.status === 'active' ? 'active' : 'completed'), // UI表示用ステータス。Talk完了ならcompleted, そうでなければオークション状態に準拠(ended->completed扱い)
             auction_status: item.status,
+            call_status: callStatus, // ソート用に保持
             created_at: new Date().toISOString(),
             detail_image_url: callSlot?.thumbnail_url || user?.profile_image_url || '/images/talks/default.jpg',
             is_female_only: false,
@@ -162,23 +171,27 @@ export default function Home() {
 
   // 優先順位に基づいてソート
   const sortedTalks = [...filteredTalks].sort((a, b) => {
+    // 1. Talk未完了 > Talk完了済
+    const aIsTalkCompleted = a.call_status === 'completed';
+    const bIsTalkCompleted = b.call_status === 'completed';
+    if (!aIsTalkCompleted && bIsTalkCompleted) return -1;
+    if (aIsTalkCompleted && !bIsTalkCompleted) return 1;
+
+    // 2. オークション未完了（active） > オークション完了（ended）
     const aAuctionStatus = a.auction_status || 'ended';
     const bAuctionStatus = b.auction_status || 'ended';
+    const aIsAuctionActive = aAuctionStatus === 'active';
+    const bIsAuctionActive = bAuctionStatus === 'active';
+    if (aIsAuctionActive && !bIsAuctionActive) return -1;
+    if (!aIsAuctionActive && bIsAuctionActive) return 1;
+
+    // 3. フォローしているインフルエンサー > フォローしていない
     const aIsFollowing = followingInfluencerIds.has(a.influencer_id);
     const bIsFollowing = followingInfluencerIds.has(b.influencer_id);
-
-    // 1. オークションが開催中（active）を優先
-    const aIsActive = aAuctionStatus === 'active';
-    const bIsActive = bAuctionStatus === 'active';
-
-    if (aIsActive && !bIsActive) return -1;
-    if (!aIsActive && bIsActive) return 1;
-
-    // 2. 同じオークション状態の中で、フォロー中を優先
     if (aIsFollowing && !bIsFollowing) return -1;
     if (!aIsFollowing && bIsFollowing) return 1;
 
-    // 3. 同じグループ内ではTalk開始時間が現在時刻に近いもの（昇順）を優先
+    // 4. Talk開始時間が現在時刻に近いもの（昇順）
     const aStartTime = new Date(a.start_time).getTime();
     const bStartTime = new Date(b.start_time).getTime();
     return aStartTime - bStartTime;
