@@ -154,8 +154,8 @@ export default function TalkCard({ talk, onSelect, isFollowing: initialIsFollowi
               onClick={handleFollowClick}
               disabled={isFollowLoading}
               className={`p-2 rounded-full transition-all duration-200 ${isFollowing
-                  ? 'bg-pink-500 text-white hover:bg-pink-600'
-                  : 'bg-white/90 text-pink-500 hover:bg-white'
+                ? 'bg-pink-500 text-white hover:bg-pink-600'
+                : 'bg-white/90 text-pink-500 hover:bg-white'
                 } disabled:opacity-50 shadow-lg`}
               title={isFollowing ? 'フォロー中' : 'フォローする'}
             >
@@ -180,7 +180,7 @@ export default function TalkCard({ talk, onSelect, isFollowing: initialIsFollowi
         </div>
 
         {/* Status Badge (Sold Out / Completed) */}
-        {(talk.status === 'ended' || talk.status === 'completed' || talk.status === 'won') && (
+        {(talk.status === 'ended' || talk.status === 'completed') && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/40 pointer-events-none">
             <div className="bg-gray-900/90 text-white px-6 py-2 transform -rotate-12 border-4 border-white font-black text-2xl tracking-widest shadow-2xl backdrop-blur-sm">
               SOLD OUT
