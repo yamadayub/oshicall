@@ -239,6 +239,33 @@ VITE_SUPABASE_ANON_KEY=eyJxxx...
 5. ✅ インフルエンサー API
 6. ✅ Stripe 決済 API（バックエンド）
 
+---
+
+## 💳 決済と送金のポリシー（最新仕様）
+
+- **課金確定のタイミングは「Talk 完了後のみ」**
+
+  - オークション落札直後・即決購入直後では PaymentIntent を capture しない（与信のみ保持）。
+  - Daily.co の room.ended / meeting.ended Webhook で Talk 完了判定（インフルエンサー参加・規定時間で自動終了・途中退出なし）を満たした場合のみ capture。
+  - 条件を満たさない場合は PaymentIntent をキャンセルし、課金は発生しない。
+
+- **送金タイミング**
+
+  - PaymentIntent capture 成功直後に Stripe Connect Transfer を実行し、`payment_transactions.stripe_transfer_id` に記録する。
+  - `users.stripe_account_id` が未登録の場合は送金をスキップ（課金は成立済み、ログ警告）。
+
+- **データ保持**
+
+  - `purchased_slots.stripe_payment_intent_id` に与信中の PaymentIntent を保存（オークション/即決どちらも）。
+  - 決済レコード（`payment_transactions`）は capture 時に作成する。
+
+- **即決購入の扱い**
+
+  - 即決購入もオークションと同様に「Talk 完了後に capture & 送金」する。
+
+- **統計更新**
+  - capture 成功後に `update_user_statistics` を実行する。
+
 ### 未実装 🚧
 
 1. 🚧 実際の入札機能
@@ -291,5 +318,3 @@ VITE_SUPABASE_ANON_KEY=eyJxxx...
 4. 開発サーバーを再起動
 
 それでも解決しない場合は、エラーメッセージとスクリーンショットを共有してください。
-
-

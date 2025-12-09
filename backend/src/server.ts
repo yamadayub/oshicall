@@ -352,10 +352,8 @@ app.post('/api/buy-now', async (req: Request, res: Response) => {
     const platformFee = Math.round(buyNowPrice * 0.2);
     const influencerPayout = buyNowPrice - platformFee;
 
-    // 2. 決済を確定（キャプチャ）
-    console.log('🔵 Payment Intent Capture:', paymentIntentId);
-    const capturedPayment = await stripe.paymentIntents.capture(paymentIntentId);
-    console.log('✅ 決済確定成功:', capturedPayment.id);
+    // 2. 決済はTalk完了後に実行するため、ここではcaptureしない（与信保持）
+    console.log('🔵 Payment Intent を保持（captureはTalk完了後に実行）:', paymentIntentId);
 
     // 3. オークション情報を更新（落札者と落札額）
     console.log('🔵 オークション情報を更新:', { userId, buyNowPrice });
@@ -395,9 +393,11 @@ app.post('/api/buy-now', async (req: Request, res: Response) => {
         fan_user_id: userId,
         influencer_user_id: influencerUserId,
         auction_id: auctionId,
+        stripe_payment_intent_id: paymentIntentId, // Talk完了後にcapture予定
         winning_bid_amount: buyNowPrice,
         platform_fee: platformFee,
         influencer_payout: influencerPayout,
+        call_status: 'pending', // Talk完了待ち
       })
       .select()
       .single();
@@ -407,25 +407,6 @@ app.post('/api/buy-now', async (req: Request, res: Response) => {
     }
 
     console.log('✅ purchased_slots記録成功:', purchasedSlot.id);
-
-    // 4. payment_transactionsテーブルに記録
-    const chargeId = capturedPayment.latest_charge
-      ? (typeof capturedPayment.latest_charge === 'string'
-        ? capturedPayment.latest_charge
-        : capturedPayment.latest_charge.id)
-      : null;
-
-    await supabase.from('payment_transactions').insert({
-      purchased_slot_id: purchasedSlot.id,
-      stripe_payment_intent_id: capturedPayment.id,
-      stripe_charge_id: chargeId,
-      amount: buyNowPrice,
-      platform_fee: platformFee,
-      influencer_payout: influencerPayout,
-      status: 'captured',
-    });
-
-    console.log('✅ payment_transactions記録成功');
 
     // 6. Edge Functionを呼び出してオークションを終了
     console.log('🔵 オークション終了Edge Functionを呼び出し');
@@ -451,18 +432,12 @@ app.post('/api/buy-now', async (req: Request, res: Response) => {
       console.warn('⚠️ オークション終了処理失敗（継続）:', finalizeError);
     }
 
-    // 7. ユーザー統計を更新
-    await supabase.rpc('update_user_statistics', {
-      p_fan_id: userId,
-      p_influencer_id: influencerUserId,
-      p_amount: buyNowPrice,
-    });
-
-    console.log('✅ 即決購入完了');
+    console.log('✅ 即決購入完了（captureはTalk完了後に実行）');
 
     res.json({
       success: true,
       purchasedSlotId: purchasedSlot.id,
+      paymentIntentId,
     });
   } catch (error: any) {
     console.error('❌ 即決購入エラー:', error);
@@ -493,7 +468,7 @@ app.post('/api/stripe/capture-payment', async (req: Request, res: Response) => {
   try {
     const { paymentIntentId, auctionId } = req.body;
 
-    // オークション終了処理
+    // オークション終了処理（落札者確定のみ。決済はTalk完了後に実施）
     const { data: auctionResult, error: auctionError } = await supabase.rpc(
       'finalize_auction',
       { p_auction_id: auctionId }
@@ -507,68 +482,31 @@ app.post('/api/stripe/capture-payment', async (req: Request, res: Response) => {
 
     const { winner_fan_id, winning_amount } = auctionResult[0];
 
-    // PaymentIntentをキャプチャ
-    const paymentIntent = await stripe.paymentIntents.capture(paymentIntentId);
-
-    // purchased_slotsを取得
-    const { data: purchasedSlot } = await supabase
+    // purchased_slotsを取得し、PaymentIntentIDを保存（captureは後続のTalk完了フローで実行）
+    const { data: purchasedSlot, error: slotError } = await supabase
       .from('purchased_slots')
       .select('*')
       .eq('auction_id', auctionId)
       .single();
 
-    if (!purchasedSlot) throw new Error('購入レコードが見つかりません');
+    if (slotError || !purchasedSlot) throw new Error('購入レコードが見つかりません');
 
-    // payment_transactionsに記録
-    const chargeId = paymentIntent.latest_charge
-      ? (typeof paymentIntent.latest_charge === 'string'
-        ? paymentIntent.latest_charge
-        : paymentIntent.latest_charge.id)
-      : null;
+    await supabase
+      .from('purchased_slots')
+      .update({
+        stripe_payment_intent_id: paymentIntentId,
+        call_status: 'pending',
+      })
+      .eq('id', purchasedSlot.id);
 
-    await supabase.from('payment_transactions').insert({
-      purchased_slot_id: purchasedSlot.id,
-      stripe_payment_intent_id: paymentIntent.id,
-      stripe_charge_id: chargeId,
-      amount: winning_amount,
-      platform_fee: purchasedSlot.platform_fee,
-      influencer_payout: purchasedSlot.influencer_payout,
-      status: 'captured',
-    });
-
-    // インフルエンサーへの送金（Stripe Connect使用）
-    const { data: influencer } = await supabase
-      .from('users')
-      .select('stripe_account_id')
-      .eq('id', purchasedSlot.influencer_user_id)
-      .single();
-
-    if (influencer?.stripe_account_id) {
-      const transfer = await stripe.transfers.create({
-        amount: Math.round(purchasedSlot.influencer_payout),
-        currency: 'jpy',
-        destination: influencer.stripe_account_id,
-        transfer_group: auctionId,
-      });
-
-      // Transferを記録
-      await supabase
-        .from('payment_transactions')
-        .update({ stripe_transfer_id: transfer.id })
-        .eq('stripe_payment_intent_id', paymentIntent.id);
-    }
-
-    // 統計情報更新
-    await supabase.rpc('update_user_statistics', {
-      p_fan_id: winner_fan_id,
-      p_influencer_id: purchasedSlot.influencer_user_id,
-      p_amount: winning_amount,
-    });
-
+    // ここでは決済/送金/統計更新は行わない。Talk完了Webhookで処理。
     res.json({
       success: true,
-      paymentIntent,
+      message: '落札確定（決済はTalk完了後に実施）',
       purchasedSlotId: purchasedSlot.id,
+      paymentIntentId,
+      amount: winning_amount,
+      fanId: winner_fan_id,
     });
   } catch (error: any) {
     console.error('決済確定エラー:', error);

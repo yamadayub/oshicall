@@ -147,7 +147,7 @@ async function processTalkPayment(supabase: any, purchasedSlotId: string) {
       return;
     }
 
-    // auction_idからbid情報を取得
+    // auction_idからbid情報を取得（なければpurchased_slotsのpayment_intentを使用）
     const { data: bid, error: bidError } = await supabase
       .from('bids')
       .select('*')
@@ -157,23 +157,35 @@ async function processTalkPayment(supabase: any, purchasedSlotId: string) {
       .limit(1)
       .single();
 
-    if (bidError || !bid || !bid.stripe_payment_intent_id) {
+    const paymentIntentId =
+      bid?.stripe_payment_intent_id ||
+      purchasedSlot.stripe_payment_intent_id;
+
+    const bidAmount =
+      bid?.bid_amount ||
+      purchasedSlot.winning_bid_amount;
+
+    if (bidError && !paymentIntentId) {
       console.error('❌ bid情報取得エラー:', bidError);
+    }
+
+    if (!paymentIntentId || !bidAmount) {
+      console.error('❌ 決済に必要な情報が不足: paymentIntentIdまたは金額がありません');
       return;
     }
 
     console.log('🔵 決済判定・実行:', {
       purchased_slot_id: purchasedSlotId,
-      payment_intent: bid.stripe_payment_intent_id,
-      bid_amount: bid.bid_amount
+      payment_intent: paymentIntentId,
+      bid_amount: bidAmount
     });
 
     // 決済判定と実行
     const result = await captureTalkPayment(
       supabase,
       purchasedSlotId,
-      bid.stripe_payment_intent_id,
-      bid.bid_amount
+      paymentIntentId,
+      bidAmount
     );
 
     if (result.success) {

@@ -282,6 +282,46 @@ export async function captureTalkPayment(
       throw paymentError;
     }
 
+    // 5.5 インフルエンサーへの送金（Stripe Connect）
+    try {
+      const { data: slotForTransfer } = await supabase
+        .from('purchased_slots')
+        .select('influencer_user_id, auction_id')
+        .eq('id', purchasedSlotId)
+        .single();
+
+      if (slotForTransfer?.influencer_user_id) {
+        const { data: influencer } = await supabase
+          .from('users')
+          .select('stripe_account_id')
+          .eq('id', slotForTransfer.influencer_user_id)
+          .single();
+
+        if (influencer?.stripe_account_id) {
+          const transfer = await stripe.transfers.create({
+            amount: Math.round(influencerPayout),
+            currency: 'jpy',
+            destination: influencer.stripe_account_id,
+            transfer_group: slotForTransfer.auction_id || purchasedSlotId,
+          });
+
+          await supabase
+            .from('payment_transactions')
+            .update({ stripe_transfer_id: transfer.id })
+            .eq('stripe_payment_intent_id', capturedPayment.id);
+
+          console.log('✅ インフルエンサー送金成功:', transfer.id);
+        } else {
+          console.warn('⚠️ stripe_account_id未登録のため送金スキップ');
+        }
+      } else {
+        console.warn('⚠️ purchased_slotsが取得できず送金スキップ');
+      }
+    } catch (transferError: any) {
+      console.error('❌ インフルエンサー送金エラー:', transferError);
+      // 決済は確定済みのため送金のみ失敗としてログに残す
+    }
+
     // 6. purchased_slotsのステータスを更新
     await supabase
       .from('purchased_slots')
