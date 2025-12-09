@@ -185,16 +185,33 @@ export default function Home() {
     if (aIsAuctionActive && !bIsAuctionActive) return -1;
     if (!aIsAuctionActive && bIsAuctionActive) return 1;
 
-    // 3. フォローしているインフルエンサー > フォローしていない
+    // 4. 未来のTalk > 過去のTalk
+    // 「未来」= StartTimeが現在時刻より後
+    // 「過去」= StartTimeが現在時刻より前
+    const now = new Date().getTime();
+    const aStartTime = new Date(a.start_time).getTime();
+    const bStartTime = new Date(b.start_time).getTime();
+    const aIsFuture = aStartTime >= now;
+    const bIsFuture = bStartTime >= now;
+
+    if (aIsFuture && !bIsFuture) return -1;
+    if (!aIsFuture && bIsFuture) return 1;
+
+    // 5. フォローしているインフルエンサー > フォローしていない
     const aIsFollowing = followingInfluencerIds.has(a.influencer_id);
     const bIsFollowing = followingInfluencerIds.has(b.influencer_id);
+
     if (aIsFollowing && !bIsFollowing) return -1;
     if (!aIsFollowing && bIsFollowing) return 1;
 
-    // 4. Talk開始時間が現在時刻に近いもの（昇順）
-    const aStartTime = new Date(a.start_time).getTime();
-    const bStartTime = new Date(b.start_time).getTime();
-    return aStartTime - bStartTime;
+    // 6. 時間ソート
+    // 未来の場合: 現在時刻に近いもの（昇順）
+    // 過去の場合: 現在時刻に近いもの（降順 - 直近の過去が先）
+    if (aIsFuture) {
+      return aStartTime - bStartTime;
+    } else {
+      return bStartTime - aStartTime;
+    }
   });
 
   return (
