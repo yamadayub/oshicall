@@ -34,7 +34,7 @@ export const mockInfluencers: Influencer[] = [
     follower_count: 15800,
     total_earned: 220000,
     total_talks: 18,
-    rating: 4.7,
+    rating: 4.7,　
     created_at: '2024-01-01T00:00:00Z',
   },
   {

@@ -293,15 +293,15 @@ export async function captureTalkPayment(
       if (slotForTransfer?.influencer_user_id) {
         const { data: influencer } = await supabase
           .from('users')
-          .select('stripe_account_id')
+          .select('stripe_connect_account_id')
           .eq('id', slotForTransfer.influencer_user_id)
           .single();
 
-        if (influencer?.stripe_account_id) {
+        if (influencer?.stripe_connect_account_id) {
           const transfer = await stripe.transfers.create({
             amount: Math.round(influencerPayout),
             currency: 'jpy',
-            destination: influencer.stripe_account_id,
+            destination: influencer.stripe_connect_account_id,
             transfer_group: slotForTransfer.auction_id || purchasedSlotId,
           });
 
@@ -312,7 +312,7 @@ export async function captureTalkPayment(
 
           console.log('✅ インフルエンサー送金成功:', transfer.id);
         } else {
-          console.warn('⚠️ stripe_account_id未登録のため送金スキップ');
+          console.warn('⚠️ stripe_connect_account_id未登録のため送金スキップ');
         }
       } else {
         console.warn('⚠️ purchased_slotsが取得できず送金スキップ');

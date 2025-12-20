@@ -195,7 +195,7 @@ async function processTalkPayment(supabase: any, purchasedSlotId: string) {
       await supabase.rpc('update_user_statistics', {
         p_fan_id: purchasedSlot.fan_user_id,
         p_influencer_id: purchasedSlot.influencer_user_id,
-        p_amount: bid.bid_amount
+        p_amount: bidAmount
       }).catch((err: any) => {
         console.warn('⚠️ ユーザー統計更新エラー（継続）:', err);
       });

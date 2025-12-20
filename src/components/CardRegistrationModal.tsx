@@ -91,7 +91,7 @@ function CardRegistrationForm({ onClose, onSuccess }: CardRegistrationFormProps)
         // 4. デフォルト支払い方法として設定
         const { getBackendUrl } = await import('../lib/backend');
         const backendUrl = getBackendUrl();
-        await fetch(`${backendUrl}/api/stripe/set-default-payment-method`, {
+        const resp = await fetch(`${backendUrl}/api/stripe/set-default-payment-method`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -99,6 +99,13 @@ function CardRegistrationForm({ onClose, onSuccess }: CardRegistrationFormProps)
             paymentMethodId: setupIntent.payment_method,
           }),
         });
+
+        if (!resp.ok) {
+          const text = await resp.text().catch(() => '');
+          throw new Error(
+            text || 'デフォルト支払い方法の設定に失敗しました。時間をおいて再度お試しください。'
+          );
+        }
 
         // 5. カード登録完了をSupabaseに記録
         console.log('🔵 カード登録完了をSupabaseに記録:', user.id);
