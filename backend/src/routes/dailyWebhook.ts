@@ -106,14 +106,49 @@ export const createDailyWebhookRouter = (supabase: any) => {
     }
   });
 
+  /**
+   * POST /api/daily/process-payment/:purchasedSlotId
+   * 手動で決済処理を実行（デバッグ用・緊急対応用）
+   */
+  router.post('/process-payment/:purchasedSlotId', async (req: Request, res: Response) => {
+    try {
+      const { purchasedSlotId } = req.params;
+
+      console.log('🔵 手動決済処理開始:', purchasedSlotId);
+
+      // 非同期で決済処理を実行
+      processTalkPayment(supabase, purchasedSlotId)
+        .then(() => {
+          console.log('✅ 手動決済処理完了:', purchasedSlotId);
+        })
+        .catch(error => {
+          console.error('❌ 手動決済処理エラー:', error);
+        });
+
+      // 即座にレスポンスを返す（非同期処理のため）
+      res.status(200).json({
+        success: true,
+        message: '決済処理を開始しました',
+        purchasedSlotId
+      });
+
+    } catch (error: any) {
+      console.error('❌ 手動決済処理エラー:', error);
+      res.status(500).json({
+        error: error.message || '決済処理の開始に失敗しました'
+      });
+    }
+  });
+
   return router;
 };
 
 /**
  * Talk終了後の決済処理
  * room-endedイベント受信時に非同期で実行
+ * 手動実行用にもエクスポート
  */
-async function processTalkPayment(supabase: any, purchasedSlotId: string) {
+export async function processTalkPayment(supabase: any, purchasedSlotId: string) {
   try {
     console.log('🔵 Talk決済処理開始:', purchasedSlotId);
 
