@@ -34,7 +34,7 @@ export default function VideoCall({
   const [remainingTime, setRemainingTime] = useState(durationMinutes);
   const [isEnding, setIsEnding] = useState(false);
   const [countdownActive, setCountdownActive] = useState(false);
-  const [showEndConfirmModal, setShowEndConfirmModal] = useState(false);
+  const [showLeaveWarningModal, setShowLeaveWarningModal] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -232,7 +232,15 @@ export default function VideoCall({
           </div>
 
           <button
-            onClick={() => setShowEndConfirmModal(true)}
+            onClick={() => {
+              // 時間切れの場合は警告なしで終了
+              if (remainingTime <= 0 || !countdownActive) {
+                handleEndCall();
+              } else {
+                // 途中退室の場合は警告を表示
+                setShowLeaveWarningModal(true);
+              }
+            }}
             disabled={isEnding}
             className="flex items-center space-x-2 px-6 py-3 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -261,43 +269,53 @@ export default function VideoCall({
         </div>
       </div>
 
-      {/* 終了確認モーダル */}
-      {showEndConfirmModal && (
+      {/* 途中退室警告モーダル */}
+      {showLeaveWarningModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 md:p-8">
             <div className="text-center mb-6">
-              <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 mb-4">
-                <PhoneOff className="h-8 w-8 text-red-600" />
+              <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-yellow-100 mb-4">
+                <PhoneOff className="h-8 w-8 text-yellow-600" />
               </div>
               <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                通話を終了しますか？
+                途中退室の確認
               </h3>
-              <p className="text-gray-600">
-                通話を終了すると、再度開始することはできません。
-                {countdownActive && (
-                  <span className="block mt-2 font-medium text-red-600">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                <p className="text-sm text-yellow-800 font-medium">
+                  {userType === 'influencer' ? (
+                    <>
+                      途中退室すると落札がキャンセルされ、入金されませんが退室されますか？
+                    </>
+                  ) : (
+                    <>
+                      途中退室しても落札はキャンセルされず、課金されますが退室されますか？
+                    </>
+                  )}
+                </p>
+                {countdownActive && remainingTime > 0 && (
+                  <p className="text-xs text-yellow-700 mt-2">
                     残り時間: {formatTime(remainingTime)}
-                  </span>
+                  </p>
                 )}
-              </p>
+              </div>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3">
               <button
-                onClick={() => setShowEndConfirmModal(false)}
+                onClick={() => setShowLeaveWarningModal(false)}
                 className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-colors"
               >
                 キャンセル
               </button>
               <button
                 onClick={() => {
-                  setShowEndConfirmModal(false);
+                  setShowLeaveWarningModal(false);
                   handleEndCall();
                 }}
                 disabled={isEnding}
                 className="flex-1 px-6 py-3 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isEnding ? '終了中...' : '終了する'}
+                {isEnding ? '終了中...' : '退室する'}
               </button>
             </div>
           </div>

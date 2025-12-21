@@ -16,7 +16,7 @@ interface TalkCompletionCheck {
  * 課金条件:
  * 1. インフルエンサーが参加した
  * 2. Daily.coルームが「規定時間経過による自動終了」になった
- * 3. インフルエンサーが途中退出していない
+ * 3. インフルエンサーが既定時間の最初から最後まで途中退室なしで参加した
  *
  * @param supabase Supabaseクライアント
  * @param purchasedSlotId purchased_slotsのID
@@ -47,6 +47,20 @@ export async function shouldCaptureTalkPayment(
     return {
       shouldCapture: false,
       reason: 'purchased_slot_not_found',
+      influencerParticipated: false,
+      completedProperly: false
+    };
+  }
+
+  const callSlot = Array.isArray(purchasedSlot.call_slots)
+    ? purchasedSlot.call_slots[0]
+    : purchasedSlot.call_slots;
+
+  if (!callSlot || !callSlot.scheduled_start_time) {
+    console.error('❌ call_slots情報が不足');
+    return {
+      shouldCapture: false,
+      reason: 'call_slot_info_missing',
       influencerParticipated: false,
       completedProperly: false
     };
@@ -116,19 +130,24 @@ export async function shouldCaptureTalkPayment(
     };
   }
 
-  // 4. インフルエンサーが途中退出していないかチェック
-  const influencerLeftEarly = hasInfluencerLeftBeforeRoomEnd(
+  // 4. インフルエンサーが既定時間の最初から最後まで途中退室なしで参加したかチェック
+  const scheduledStartTime = new Date(callSlot.scheduled_start_time);
+  const scheduledEndTime = new Date(scheduledStartTime.getTime() + callSlot.duration_minutes * 60 * 1000);
+  
+  const stayedFromStartToEnd = hasInfluencerStayedFromStartToEnd(
     events,
-    purchasedSlot.influencer_user_id
+    purchasedSlot.influencer_user_id,
+    scheduledStartTime,
+    scheduledEndTime
   );
 
-  console.log('🔵 インフルエンサー途中退出:', influencerLeftEarly);
+  console.log('🔵 インフルエンサー連続参加:', stayedFromStartToEnd);
 
-  if (influencerLeftEarly) {
-    console.warn('⚠️ インフルエンサーが途中退出');
+  if (!stayedFromStartToEnd) {
+    console.warn('⚠️ インフルエンサーが既定時間の最初から最後まで参加していない');
     return {
       shouldCapture: false,
-      reason: 'influencer_left_early',
+      reason: 'influencer_left_during_talk',
       influencerParticipated: true,
       completedProperly: false
     };
@@ -145,40 +164,85 @@ export async function shouldCaptureTalkPayment(
 }
 
 /**
- * インフルエンサーが自動終了前に退出したかチェック
+ * インフルエンサーが既定時間の最初から最後まで途中退室なしで参加したかチェック
+ * 
+ * @param events イベントログ配列
+ * @param influencerUserId インフルエンサーのユーザーID
+ * @param scheduledStartTime 予定開始時刻
+ * @param scheduledEndTime 予定終了時刻
+ * @returns true: 最初から最後まで参加、false: 途中退室あり
  */
-function hasInfluencerLeftBeforeRoomEnd(
+function hasInfluencerStayedFromStartToEnd(
   events: any[],
-  influencerUserId: string
+  influencerUserId: string,
+  scheduledStartTime: Date,
+  scheduledEndTime: Date
 ): boolean {
 
-  // room-endedイベントを探す
+  // 1. インフルエンサーの参加イベントを探す
+  const influencerJoinedEvents = events.filter(e =>
+    e.event_type === 'participant.joined' &&
+    e.user_id === influencerUserId
+  );
+
+  if (influencerJoinedEvents.length === 0) {
+    // 参加イベントがない = 参加していない
+    return false;
+  }
+
+  // 最初の参加時刻を取得（開始時刻前の参加も許可）
+  const firstJoinTime = new Date(
+    influencerJoinedEvents.reduce((earliest, e) => {
+      const eventTime = new Date(e.created_at);
+      return eventTime < earliest ? eventTime : earliest;
+    }, new Date(influencerJoinedEvents[0].created_at))
+  );
+
+  // 2. インフルエンサーの退出イベントを探す
+  const influencerLeftEvents = events.filter(e =>
+    e.event_type === 'participant.left' &&
+    e.user_id === influencerUserId
+  );
+
+  // 3. ルーム終了イベントを探す
   const roomEndEvent = events.find(e =>
     e.event_type === 'room.ended' || e.event_type === 'meeting.ended'
   );
 
   if (!roomEndEvent) {
-    // 終了イベントがない場合は判定できない（false = 退出していない扱い）
+    // 終了イベントがない場合は判定できない（false = 途中退室あり扱い）
     return false;
   }
 
   const roomEndTime = new Date(roomEndEvent.created_at);
 
-  // インフルエンサーのleftイベントを探す
-  const influencerLeftEvent = events.find(e =>
-    e.event_type === 'participant.left' &&
-    e.user_id === influencerUserId
-  );
+  // 4. 退出イベントがない場合 = 最後まで参加していた
+  if (influencerLeftEvents.length === 0) {
+    // 開始時刻から終了時刻まで参加していたか確認
+    // 開始時刻前に入室している場合は開始時刻からカウント
+    const effectiveStartTime = firstJoinTime > scheduledStartTime 
+      ? firstJoinTime 
+      : scheduledStartTime;
+    
+    // 終了時刻まで参加していたか
+    return roomEndTime >= scheduledEndTime;
+  }
 
-  if (!influencerLeftEvent) {
-    // 退出イベントがない = 最後までいた
+  // 5. 退出イベントがある場合、開始時刻から終了時刻までの間に退出していないか確認
+  const lastLeftTime = influencerLeftEvents.reduce((latest, e) => {
+    const eventTime = new Date(e.created_at);
+    return eventTime > latest ? eventTime : latest;
+  }, new Date(influencerLeftEvents[0].created_at));
+
+  // 開始時刻から終了時刻までの間に退出していないか
+  // 終了時刻より後に退出した場合は問題なし（正常終了）
+  if (lastLeftTime < scheduledEndTime) {
+    // 終了時刻より前に退出 = 途中退室
     return false;
   }
 
-  const leftTime = new Date(influencerLeftEvent.created_at);
-
-  // 終了前に退出していたらtrue
-  return leftTime < roomEndTime;
+  // 終了時刻以降に退出 = 正常終了（最後まで参加）
+  return true;
 }
 
 /**
