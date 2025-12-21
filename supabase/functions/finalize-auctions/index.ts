@@ -86,7 +86,7 @@ function generateAuctionWinEmail(data: AuctionWinEmailData): string {
               <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 20px; margin-bottom: 30px; border-radius: 4px;">
                 <h3 style="margin: 0 0 12px; color: #1e40af; font-size: 16px; font-weight: bold;">📝 次のステップ</h3>
                 <ol style="margin: 0; padding-left: 20px; color: #1e40af; font-size: 14px; line-height: 1.8;">
-                  <li>決済が正常に完了しました</li>
+                  <li>落札が確定しました（決済はTalk完了後に実施されます）</li>
                   <li>マイページから予約済みTalk枠を確認できます</li>
                   <li>開始時刻の15分前から通話ルームに入室できます</li>
                   <li>時間になったらアプリから通話を開始してください</li>
@@ -430,16 +430,13 @@ Deno.serve(async (req) => {
         const platformFee = Math.round(highestBid.bid_amount * 0.2);
         const influencerPayout = highestBid.bid_amount - platformFee;
 
-        // 3. 落札者の与信を決済確定（capture）
+        // 3. purchased_slotsテーブルに記録（決済はTalk完了後に実施）
+        // PaymentIntentは与信確保済み（requires_capture）のまま保持
         if (highestBid.stripe_payment_intent_id) {
           try {
-            console.log(`🔵 Payment Intent Capture: ${highestBid.stripe_payment_intent_id}`);
-            const capturedPayment = await stripe.paymentIntents.capture(
-              highestBid.stripe_payment_intent_id
-            );
-            console.log(`✅ 決済確定成功: ¥${capturedPayment.amount}`);
+            console.log(`🔵 オークション終了処理: PaymentIntent=${highestBid.stripe_payment_intent_id}（与信確保済み、決済はTalk完了後に実施）`);
 
-            // 5. purchased_slotsテーブルに記録
+            // purchased_slotsテーブルに記録
             const { data: purchasedSlot, error: purchaseError } = await supabase
               .from('purchased_slots')
               .insert({
@@ -450,6 +447,8 @@ Deno.serve(async (req) => {
                 winning_bid_amount: highestBid.bid_amount,
                 platform_fee: platformFee,
                 influencer_payout: influencerPayout,
+                stripe_payment_intent_id: highestBid.stripe_payment_intent_id,
+                call_status: 'pending', // Talk完了後に決済確定
               })
               .select()
               .single();
@@ -458,7 +457,7 @@ Deno.serve(async (req) => {
               throw purchaseError;
             }
 
-            console.log(`✅ purchased_slots記録成功: ${purchasedSlot.id}`);
+            console.log(`✅ purchased_slots記録成功: ${purchasedSlot.id}（決済はTalk完了後に実施）`);
 
             // 5.5. call_slotsテーブルのfan_user_idを更新 (これをしないと購入済みTalkに表示されない)
             const { error: updateCallSlotError } = await supabase
@@ -472,25 +471,6 @@ Deno.serve(async (req) => {
             } else {
               console.log('✅ call_slots情報更新成功 (fan_user_id set)');
             }
-
-            // 6. payment_transactionsテーブルに記録
-            const chargeId = capturedPayment.latest_charge
-              ? (typeof capturedPayment.latest_charge === 'string'
-                ? capturedPayment.latest_charge
-                : capturedPayment.latest_charge.id)
-              : null;
-
-            await supabase.from('payment_transactions').insert({
-              purchased_slot_id: purchasedSlot.id,
-              stripe_payment_intent_id: capturedPayment.id,
-              stripe_charge_id: chargeId,
-              amount: highestBid.bid_amount,
-              platform_fee: platformFee,
-              influencer_payout: influencerPayout,
-              status: 'captured',
-            });
-
-            console.log(`✅ payment_transactions記録成功`);
 
             // 7. 落札者にメール通知を送信
             try {
@@ -694,12 +674,8 @@ Deno.serve(async (req) => {
               }
             }
 
-            // 10. ユーザー統計を更新
-            await supabase.rpc('update_user_statistics', {
-              p_fan_id: highestBid.user_id,
-              p_influencer_id: influencerId,
-              p_amount: highestBid.bid_amount,
-            });
+            // ユーザー統計の更新は決済確定後（Talk完了後）に実行
+            // ここでは更新しない
 
             results.push({
               auction_id: auctionId,
@@ -708,91 +684,22 @@ Deno.serve(async (req) => {
               amount: highestBid.bid_amount,
             });
 
-            console.log(`✅ オークション終了処理完了: ${auctionId}`);
+            console.log(`✅ オークション終了処理完了: ${auctionId}（決済はTalk完了後に実施）`);
 
-          } catch (captureError: any) {
-            console.error(`❌ 決済確定エラー: ${captureError.message}`);
+          } catch (purchaseError: any) {
+            console.error(`❌ purchased_slots作成エラー: ${purchaseError.message}`);
 
-            // 既にキャプチャ済みの場合は、purchased_slotsにレコードを作成
-            if (captureError.message && captureError.message.includes('already been captured')) {
-              console.log(`⚠️ 既にキャプチャ済み: ${auctionId} - purchased_slotsレコードを作成`);
+            // オークションを終了状態に更新（エラーでも続行）
+            await supabase
+              .from('auctions')
+              .update({ status: 'ended', current_winner_id: highestBid.user_id })
+              .eq('id', auctionId);
 
-              try {
-                console.log(`🔵 already_captured処理開始: fanUserId=${fanUserId}, influencerUserId=${influencerUserId}`);
-
-                // purchased_slotsに既にレコードがあるかチェック（maybeSingle()を使用）
-                const { data: existingSlot, error: checkError } = await supabase
-                  .from('purchased_slots')
-                  .select('id')
-                  .eq('auction_id', auctionId)
-                  .maybeSingle();
-
-                if (checkError) {
-                  console.error(`❌ purchased_slotsチェックエラー:`, checkError);
-                  throw checkError;
-                }
-
-                if (!existingSlot) {
-                  console.log(`🔵 purchased_slotsレコードを新規作成`);
-                  // レコードが存在しない場合のみ作成
-                  const { data: purchasedSlot, error: purchaseError } = await supabase
-                    .from('purchased_slots')
-                    .insert({
-                      call_slot_id: auction.call_slot_id,
-                      fan_user_id: fanUserId,
-                      influencer_user_id: influencerUserId,
-                      auction_id: auctionId,
-                      winning_bid_amount: highestBid.bid_amount,
-                      platform_fee: platformFee,
-                      influencer_payout: influencerPayout,
-                    })
-                    .select()
-                    .single();
-
-                  if (purchaseError) {
-                    console.error(`❌ purchased_slots作成エラー:`, JSON.stringify(purchaseError, null, 2));
-                    throw purchaseError;
-                  } else {
-                    console.log(`✅ purchased_slots作成成功: ${purchasedSlot.id}`);
-                  }
-
-                  // call_slotsテーブルのfan_user_idも更新しておく
-                  const { error: updateCallSlotError } = await supabase
-                    .from('call_slots')
-                    .update({ fan_user_id: fanUserId })
-                    .eq('id', auction.call_slot_id);
-
-                  if (updateCallSlotError) {
-                    console.error('❌ call_slots更新エラー(recovery):', updateCallSlotError);
-                  } else {
-                    console.log('✅ call_slots情報更新成功(recovery) (fan_user_id set)');
-                  }
-                } else {
-                  console.log(`ℹ️ purchased_slotsレコードは既に存在: ${existingSlot.id}`);
-                }
-              } catch (slotError: any) {
-                console.error(`❌ purchased_slots処理エラー: ${slotError.message}`);
-                console.error(`❌ エラー詳細:`, JSON.stringify(slotError, null, 2));
-              }
-
-              // オークションを終了状態に更新
-              await supabase
-                .from('auctions')
-                .update({ status: 'ended', current_winner_id: highestBid.user_id })
-                .eq('id', auctionId);
-
-              results.push({
-                auction_id: auctionId,
-                status: 'already_captured',
-                winner_id: highestBid.user_id,
-              });
-            } else {
-              results.push({
-                auction_id: auctionId,
-                status: 'capture_failed',
-                error: captureError.message,
-              });
-            }
+            results.push({
+              auction_id: auctionId,
+              status: 'purchase_failed',
+              error: purchaseError.message,
+            });
           }
         }
       } catch (error: any) {

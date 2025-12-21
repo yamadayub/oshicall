@@ -176,23 +176,28 @@ export const createDailyWebhook = async (webhookUrl: string): Promise<any> => {
 
     console.log('🔵 Daily.co Webhook作成:', webhookUrl);
 
-    // Daily.coのWebhook APIではevent_typesの指定が必須
-    const response = await dailyApi.post('/webhooks', {
-      url: webhookUrl,
-      event_types: [
-        'participant-joined',
-        'participant-left',
-        'room-ended',
-        'meeting-ended'
-      ]
-    });
+    // Daily.coのWebhook API: urlのみを指定（全イベントを自動送信）
+    // 参考: https://docs.daily.co/reference/rest-api/webhooks
+    const requestBody = {
+      url: webhookUrl
+    };
+
+    console.log('🔵 Webhook作成リクエスト:', JSON.stringify(requestBody, null, 2));
+
+    const response = await dailyApi.post('/webhooks', requestBody);
 
     console.log('✅ Webhook作成成功:', response.data);
     return response.data;
 
   } catch (error: any) {
-    console.error('❌ Webhook作成エラー:', error.response?.data || error.message);
-    throw new Error(`Webhook作成に失敗: ${error.response?.data?.error || error.message}`);
+    const errorDetails = error.response?.data || error.message;
+    console.error('❌ Webhook作成エラー詳細:', {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      message: error.message
+    });
+    throw new Error(`Webhook作成に失敗: ${JSON.stringify(errorDetails)}`);
   }
 };
 

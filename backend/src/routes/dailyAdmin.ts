@@ -67,9 +67,15 @@ router.post('/webhooks', async (req: Request, res: Response) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Webhook作成エラー:', error);
+    console.error('❌ Webhook作成エラー詳細:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+      statusText: error.response?.statusText
+    });
     res.status(500).json({
-      error: error.message || 'Webhook作成に失敗しました'
+      error: error.message || 'Webhook作成に失敗しました',
+      details: error.response?.data || null
     });
   }
 });

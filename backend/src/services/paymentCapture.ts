@@ -296,90 +296,115 @@ export async function captureTalkPayment(
     // 2. Payment Intentの状態を確認
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
 
+    let capturedPayment = paymentIntent;
+    let isAlreadyCaptured = false;
+
     if (paymentIntent.status === 'succeeded') {
       console.log('⚠️ 既に決済済み:', paymentIntentId);
-      return {
-        success: true,
-        message: '既に決済済み',
-        capturedPayment: paymentIntent
-      };
-    }
-
-    if (paymentIntent.status !== 'requires_capture') {
+      isAlreadyCaptured = true;
+      // 既に決済済みでも送金処理は実行する
+    } else if (paymentIntent.status !== 'requires_capture') {
       console.warn('⚠️ キャプチャ不可能な状態:', paymentIntent.status);
       return {
         success: false,
         message: `キャプチャ不可能: ${paymentIntent.status}`
       };
+    } else {
+      // 3. 決済を確定（capture）
+      console.log('🔵 PaymentIntent Capture実行:', paymentIntentId);
+      capturedPayment = await stripe.paymentIntents.capture(paymentIntentId);
+      console.log('✅ 決済確定成功:', capturedPayment.id);
     }
-
-    // 3. 決済を確定（capture）
-    console.log('🔵 PaymentIntent Capture実行:', paymentIntentId);
-    const capturedPayment = await stripe.paymentIntents.capture(paymentIntentId);
-    console.log('✅ 決済確定成功:', capturedPayment.id);
 
     // 4. プラットフォーム手数料計算（20%）
     const platformFee = Math.round(bidAmount * 0.2);
     const influencerPayout = bidAmount - platformFee;
 
-    // 5. payment_transactionsに記録
-    const chargeId = capturedPayment.latest_charge
-      ? (typeof capturedPayment.latest_charge === 'string'
-          ? capturedPayment.latest_charge
-          : capturedPayment.latest_charge.id)
-      : null;
+    // 5. payment_transactionsに記録（既に存在する場合はスキップ）
+    if (!isAlreadyCaptured) {
+      const chargeId = capturedPayment.latest_charge
+        ? (typeof capturedPayment.latest_charge === 'string'
+            ? capturedPayment.latest_charge
+            : capturedPayment.latest_charge.id)
+        : null;
 
-    const { error: paymentError } = await supabase
-      .from('payment_transactions')
-      .insert({
-        purchased_slot_id: purchasedSlotId,
-        stripe_payment_intent_id: capturedPayment.id,
-        stripe_charge_id: chargeId,
-        amount: bidAmount,
-        platform_fee: platformFee,
-        influencer_payout: influencerPayout,
-        status: 'captured'
-      });
+      // 既に記録されているかチェック
+      const { data: existingPayment } = await supabase
+        .from('payment_transactions')
+        .select('id')
+        .eq('stripe_payment_intent_id', capturedPayment.id)
+        .maybeSingle();
 
-    if (paymentError) {
-      console.error('❌ payment_transactions記録エラー:', paymentError);
-      throw paymentError;
+      if (!existingPayment) {
+        const { error: paymentError } = await supabase
+          .from('payment_transactions')
+          .insert({
+            purchased_slot_id: purchasedSlotId,
+            stripe_payment_intent_id: capturedPayment.id,
+            stripe_charge_id: chargeId,
+            amount: bidAmount,
+            platform_fee: platformFee,
+            influencer_payout: influencerPayout,
+            status: 'captured'
+          });
+
+        if (paymentError) {
+          console.error('❌ payment_transactions記録エラー:', paymentError);
+          throw paymentError;
+        }
+      } else {
+        console.log('ℹ️ payment_transactionsは既に記録済み');
+      }
+    } else {
+      console.log('ℹ️ 既に決済済みのためpayment_transactions記録をスキップ');
     }
 
     // 5.5 インフルエンサーへの送金（Stripe Connect）
+    // 既に決済済みの場合でも送金処理を実行（送金が未実行の場合）
     try {
-      const { data: slotForTransfer } = await supabase
-        .from('purchased_slots')
-        .select('influencer_user_id, auction_id')
-        .eq('id', purchasedSlotId)
-        .single();
+      // 既に送金済みかチェック
+      const { data: existingPayment } = await supabase
+        .from('payment_transactions')
+        .select('stripe_transfer_id')
+        .eq('stripe_payment_intent_id', capturedPayment.id)
+        .maybeSingle();
 
-      if (slotForTransfer?.influencer_user_id) {
-        const { data: influencer } = await supabase
-          .from('users')
-          .select('stripe_connect_account_id')
-          .eq('id', slotForTransfer.influencer_user_id)
+      if (existingPayment?.stripe_transfer_id) {
+        console.log('ℹ️ 既に送金済み:', existingPayment.stripe_transfer_id);
+      } else {
+        const { data: slotForTransfer } = await supabase
+          .from('purchased_slots')
+          .select('influencer_user_id, auction_id')
+          .eq('id', purchasedSlotId)
           .single();
 
-        if (influencer?.stripe_connect_account_id) {
-          const transfer = await stripe.transfers.create({
-            amount: Math.round(influencerPayout),
-            currency: 'jpy',
-            destination: influencer.stripe_connect_account_id,
-            transfer_group: slotForTransfer.auction_id || purchasedSlotId,
-          });
+        if (slotForTransfer?.influencer_user_id) {
+          const { data: influencer } = await supabase
+            .from('users')
+            .select('stripe_connect_account_id')
+            .eq('id', slotForTransfer.influencer_user_id)
+            .single();
 
-          await supabase
-            .from('payment_transactions')
-            .update({ stripe_transfer_id: transfer.id })
-            .eq('stripe_payment_intent_id', capturedPayment.id);
+          if (influencer?.stripe_connect_account_id) {
+            const transfer = await stripe.transfers.create({
+              amount: Math.round(influencerPayout),
+              currency: 'jpy',
+              destination: influencer.stripe_connect_account_id,
+              transfer_group: slotForTransfer.auction_id || purchasedSlotId,
+            });
 
-          console.log('✅ インフルエンサー送金成功:', transfer.id);
+            await supabase
+              .from('payment_transactions')
+              .update({ stripe_transfer_id: transfer.id })
+              .eq('stripe_payment_intent_id', capturedPayment.id);
+
+            console.log('✅ インフルエンサー送金成功:', transfer.id);
+          } else {
+            console.warn('⚠️ stripe_connect_account_id未登録のため送金スキップ');
+          }
         } else {
-          console.warn('⚠️ stripe_connect_account_id未登録のため送金スキップ');
+          console.warn('⚠️ purchased_slotsが取得できず送金スキップ');
         }
-      } else {
-        console.warn('⚠️ purchased_slotsが取得できず送金スキップ');
       }
     } catch (transferError: any) {
       console.error('❌ インフルエンサー送金エラー:', transferError);
