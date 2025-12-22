@@ -208,7 +208,8 @@ export const listDailyWebhooks = async (): Promise<any[]> => {
   try {
     const dailyApi = getDailyApi();
     const response = await dailyApi.get('/webhooks');
-    return response.data.data || [];
+    // Daily.co APIは配列を直接返す（response.dataが配列）
+    return Array.isArray(response.data) ? response.data : (response.data?.data || []);
   } catch (error: any) {
     console.error('❌ Webhook一覧取得エラー:', error.response?.data || error.message);
     throw error;
