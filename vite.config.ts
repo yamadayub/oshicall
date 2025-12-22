@@ -9,13 +9,10 @@ export default defineConfig({
     include: ['lucide-react'],
   },
   define: {
-    // STRIPE_PUBLISHABLE_KEYをクライアント側で使用できるように定義
     'import.meta.env.STRIPE_PUBLISHABLE_KEY': JSON.stringify(process.env.STRIPE_PUBLISHABLE_KEY || ''),
   },
   build: {
-    // 環境変数の情報をビルドログに出力（デバッグ用）
     reportCompressedSize: true,
-    // CSP対応のための設定
     rollupOptions: {
       output: {
         manualChunks: undefined,
@@ -25,6 +22,17 @@ export default defineConfig({
   server: {
     headers: {
       'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https:;",
+    },
+  },
+  // テスト設定
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: './src/test/setup.ts',
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    coverage: {
+      reporter: ['text', 'json', 'html'],
+      exclude: ['node_modules/', 'src/test/'],
     },
   },
 });
