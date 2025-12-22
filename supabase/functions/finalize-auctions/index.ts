@@ -436,6 +436,35 @@ Deno.serve(async (req) => {
           try {
             console.log(`🔵 オークション終了処理: PaymentIntent=${highestBid.stripe_payment_intent_id}（与信確保済み、決済はTalk完了後に実施）`);
 
+            // 5.5. call_slotsテーブルのfan_user_idを更新 (これをしないと購入済みTalkに表示されない)
+            // purchased_slotsのinsertの前に実行することで、確実に更新される
+            const { data: updatedCallSlot, error: updateCallSlotError } = await supabase
+              .from('call_slots')
+              .update({ fan_user_id: fanUserId })
+              .eq('id', auction.call_slot_id)
+              .select();
+
+            if (updateCallSlotError) {
+              console.error('❌ call_slots更新エラー:', {
+                error: updateCallSlotError,
+                auction_id: auctionId,
+                call_slot_id: auction.call_slot_id,
+                fan_user_id: fanUserId
+              });
+              throw new Error(`call_slots更新に失敗: ${updateCallSlotError.message}`);
+            }
+
+            if (!updatedCallSlot || updatedCallSlot.length === 0) {
+              console.error('❌ call_slots更新失敗: 更新された行が0件', {
+                auction_id: auctionId,
+                call_slot_id: auction.call_slot_id,
+                fan_user_id: fanUserId
+              });
+              throw new Error(`call_slots更新失敗: 更新された行が0件（call_slot_id=${auction.call_slot_id}が存在しない可能性）`);
+            }
+
+            console.log(`✅ call_slots情報更新成功 (fan_user_id=${fanUserId} set to call_slot_id=${auction.call_slot_id})`);
+
             // purchased_slotsテーブルに記録
             const { data: purchasedSlot, error: purchaseError } = await supabase
               .from('purchased_slots')
@@ -458,19 +487,6 @@ Deno.serve(async (req) => {
             }
 
             console.log(`✅ purchased_slots記録成功: ${purchasedSlot.id}（決済はTalk完了後に実施）`);
-
-            // 5.5. call_slotsテーブルのfan_user_idを更新 (これをしないと購入済みTalkに表示されない)
-            const { error: updateCallSlotError } = await supabase
-              .from('call_slots')
-              .update({ fan_user_id: fanUserId })
-              .eq('id', auction.call_slot_id);
-
-            if (updateCallSlotError) {
-              console.error('❌ call_slots更新エラー:', updateCallSlotError);
-              // エラーでも続行
-            } else {
-              console.log('✅ call_slots情報更新成功 (fan_user_id set)');
-            }
 
             // 7. 落札者にメール通知を送信
             try {

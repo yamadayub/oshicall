@@ -84,22 +84,29 @@ export default function Talk() {
     }
 
     // if purchased_slot_id is missing, try to find it (for both influencers and fans)
-    // if (isInfluencer) { // Removed restriction so fans can also find their slot
-    if (true) {
-      try {
-        const { data, error } = await supabase
-          .from('purchased_slots')
-          .select('id')
-          .eq('call_slot_id', talk.id)
-          .maybeSingle();
+    try {
+      let query = supabase
+        .from('purchased_slots')
+        .select('id')
+        .eq('call_slot_id', talk.id);
 
-        if (!error && data) {
-          navigate(`/call/${data.id}`);
-          return;
-        }
-      } catch (err) {
-        console.error('Error fetching purchased slot:', err);
+      // インフルエンサーの場合、influencer_user_idでフィルタリング
+      if (isInfluencer && supabaseUser?.id) {
+        query = query.eq('influencer_user_id', supabaseUser.id);
       }
+      // ファンの場合、fan_user_idでフィルタリング
+      else if (!isInfluencer && supabaseUser?.id) {
+        query = query.eq('fan_user_id', supabaseUser.id);
+      }
+
+      const { data, error } = await query.maybeSingle();
+
+      if (!error && data) {
+        navigate(`/call/${data.id}`);
+        return;
+      }
+    } catch (err) {
+      console.error('Error fetching purchased slot:', err);
     }
 
     // Fallback to talk-detail instead of live-talk for unpurchased/hosting talks
