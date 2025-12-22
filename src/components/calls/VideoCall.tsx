@@ -8,6 +8,7 @@ interface VideoCallProps {
   token: string;
   purchasedSlotId: string;
   durationMinutes: number;
+  scheduledStartTime: string; // Talk枠の予定開始時刻
   userId: string;
   userType: 'influencer' | 'fan';
   onCallEnd: (duration: number) => void;
@@ -18,6 +19,7 @@ export default function VideoCall({
   token,
   purchasedSlotId,
   durationMinutes,
+  scheduledStartTime,
   userId,
   userType,
   onCallEnd,
@@ -25,8 +27,7 @@ export default function VideoCall({
   const callFrameRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const initializingRef = useRef(false); // 初期化中フラグ
-  const countdownStartedRef = useRef(false); // カウントダウン開始フラグ
-  const callStartTimeRef = useRef<Date | null>(null); // 通話開始時刻
+  const scheduledEndTimeRef = useRef<Date | null>(null); // Talk枠の予定終了時刻
   const [isJoined, setIsJoined] = useState(false);
   const [participantCount, setParticipantCount] = useState(0);
   const [influencerJoined, setInfluencerJoined] = useState(false);
@@ -35,6 +36,16 @@ export default function VideoCall({
   const [isEnding, setIsEnding] = useState(false);
   const [countdownActive, setCountdownActive] = useState(false);
   const [showLeaveWarningModal, setShowLeaveWarningModal] = useState(false);
+
+  // Talk枠の予定終了時刻を計算（初回のみ）
+  useEffect(() => {
+    if (!scheduledEndTimeRef.current) {
+      const startTime = new Date(scheduledStartTime);
+      const endTime = new Date(startTime.getTime() + durationMinutes * 60 * 1000);
+      scheduledEndTimeRef.current = endTime;
+      console.log('🔵 Talk枠の予定終了時刻を設定:', endTime.toISOString());
+    }
+  }, [scheduledStartTime, durationMinutes]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -62,6 +73,8 @@ export default function VideoCall({
           showFullscreenButton: true,
           showLocalVideo: true,
           showParticipantsBar: true,
+          // コントロールバーを表示（Mute機能を含む）
+          showControls: true,
         });
 
         callFrameRef.current = callFrame;
@@ -135,11 +148,9 @@ export default function VideoCall({
           return;
         }
 
-        // インフルエンサーが入室したらカウントダウン開始
-        if (status.participants.influencer_joined && !countdownStartedRef.current) {
-          console.log('✅ インフルエンサーが入室 - カウントダウン開始');
-          countdownStartedRef.current = true;
-          callStartTimeRef.current = new Date(); // 通話開始時刻を記録
+        // カウントダウンを開始（予定終了時刻から計算）
+        if (!countdownActive && scheduledEndTimeRef.current) {
+          console.log('✅ カウントダウン開始（予定終了時刻から計算）');
           setCountdownActive(true);
         }
       } catch (error) {
@@ -153,14 +164,15 @@ export default function VideoCall({
     return () => clearInterval(interval);
   }, [isJoined, purchasedSlotId, isEnding]);
 
-  // 残り時間カウントダウン（インフルエンサー入室後のみ）
+  // 残り時間カウントダウン（Talk枠の予定終了時刻から計算）
   useEffect(() => {
-    if (!countdownActive || !callStartTimeRef.current) return;
+    if (!countdownActive || !scheduledEndTimeRef.current) return;
 
     const timer = setInterval(() => {
       const now = new Date();
-      const elapsedMinutes = (now.getTime() - callStartTimeRef.current!.getTime()) / (1000 * 60);
-      const newRemainingTime = Math.max(0, durationMinutes - elapsedMinutes);
+      const endTime = scheduledEndTimeRef.current!;
+      const remainingMs = endTime.getTime() - now.getTime();
+      const newRemainingTime = Math.max(0, remainingMs / (1000 * 60)); // 分単位
 
       setRemainingTime(newRemainingTime);
 
@@ -173,7 +185,7 @@ export default function VideoCall({
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [countdownActive, durationMinutes]);
+  }, [countdownActive]);
 
   const handleEndCall = async () => {
     if (isEnding) return;
@@ -242,10 +254,10 @@ export default function VideoCall({
               }
             }}
             disabled={isEnding}
-            className="flex items-center space-x-2 px-6 py-3 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center justify-center gap-2 px-4 py-2 sm:px-6 sm:py-3 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
           >
-            <PhoneOff className="h-5 w-5" />
-            <span>{isEnding ? '終了中...' : '通話を終了'}</span>
+            <PhoneOff className="h-5 w-5 flex-shrink-0" />
+            <span className="text-sm sm:text-base">{isEnding ? '終了中...' : '終了'}</span>
           </button>
         </div>
       </div>

@@ -276,7 +276,7 @@ export default function CallWaitingRoom({
         {/* 入室ボタン */}
         <button
           onClick={handleJoinClick}
-          disabled={!canJoin || !cameraPermission || !micPermission}
+          disabled={timeUntilStart > 0 || !cameraPermission || !micPermission}
           className="w-full py-6 md:py-6 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-2xl font-bold text-lg md:text-xl hover:from-pink-600 hover:to-purple-700 transition-all duration-200 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 disabled:transform-none flex flex-col md:flex-row items-center justify-center gap-2 whitespace-normal h-auto min-h-[80px]"
         >
           {timeUntilStart <= 0 ? (

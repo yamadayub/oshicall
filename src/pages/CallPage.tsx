@@ -233,6 +233,7 @@ export default function CallPage() {
         token={roomData.token}
         purchasedSlotId={purchasedSlotId!}
         durationMinutes={purchasedSlot.call_slots.duration_minutes}
+        scheduledStartTime={purchasedSlot.call_slots.scheduled_start_time}
         userId={supabaseUser!.id}
         userType={userType}
         onCallEnd={handleCallEnd}
