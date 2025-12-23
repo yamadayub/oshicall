@@ -54,6 +54,7 @@ export const publishCallSlot = async (callSlotId: string) => {
     .from('call_slots')
     .update({ is_published: true })
     .eq('id', callSlotId)
+    .is('deleted_at', null)
     .select()
     .single();
   
@@ -70,6 +71,7 @@ export const getInfluencerCallSlots = async (influencerId: string) => {
       auctions (*)
     `)
     .eq('influencer_id', influencerId)
+    .is('deleted_at', null)
     .order('scheduled_start_time', { ascending: false });
   
   if (error) throw error;
@@ -122,6 +124,7 @@ export const updateCallSlot = async (
     .from('call_slots')
     .update(updates)
     .eq('id', callSlotId)
+    .is('deleted_at', null)
     .select()
     .single();
   
@@ -129,12 +132,13 @@ export const updateCallSlot = async (
   return data;
 };
 
-// 通話枠を削除
+// 通話枠を削除（論理削除）
 export const deleteCallSlot = async (callSlotId: string) => {
   const { error } = await supabase
     .from('call_slots')
-    .delete()
-    .eq('id', callSlotId);
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', callSlotId)
+    .is('deleted_at', null); // 既に削除されているものは更新しない
   
   if (error) throw error;
 };

@@ -376,7 +376,8 @@ app.post('/api/buy-now', async (req: Request, res: Response) => {
     const { error: updateCallSlotError } = await supabase
       .from('call_slots')
       .update({ fan_user_id: userId })
-      .eq('id', auction.call_slot_id);
+      .eq('id', auction.call_slot_id)
+      .is('deleted_at', null);
 
     if (updateCallSlotError) {
       console.error('❌ call_slots更新エラー:', updateCallSlotError);
@@ -1074,6 +1075,7 @@ app.put('/api/call-slots/:callSlotId', async (req: Request, res: Response) => {
       .from('call_slots')
       .select('id, user_id')
       .eq('id', callSlotId)
+      .is('deleted_at', null)
       .single();
 
     if (callSlotError) {
@@ -1141,6 +1143,7 @@ app.put('/api/call-slots/:callSlotId', async (req: Request, res: Response) => {
       .from('call_slots')
       .update(callSlotUpdateData)
       .eq('id', callSlotId)
+      .is('deleted_at', null)
       .select()
       .single();
 

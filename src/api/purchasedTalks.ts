@@ -28,6 +28,7 @@ export const getPurchasedTalks = async (userId: string) => {
         )
       `)
       .eq('fan_user_id', userId)
+      .is('deleted_at', null)
       .order('scheduled_start_time', { ascending: false });
 
     if (error) {
@@ -197,6 +198,7 @@ export const getInfluencerHostedTalks = async (userId: string) => {
         )
       `)
       .eq('user_id', userId)
+      .is('deleted_at', null)
       .order('scheduled_start_time', { ascending: true });
 
     if (error) {

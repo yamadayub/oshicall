@@ -78,7 +78,7 @@ export const createCallSlot = async (
     .single();
 
   if (auctionError) {
-    // オークション作成失敗時はCall Slotを削除
+    // オークション作成失敗時はCall Slotを物理削除（作成直後なので論理削除ではなく物理削除）
     await supabase.from('call_slots').delete().eq('id', callSlot.id);
     throw auctionError;
   }
@@ -143,6 +143,7 @@ export const getInfluencerCallSlots = async (
       )
     `)
     .eq('user_id', userId)
+    .is('deleted_at', null)
     .order('scheduled_start_time', { ascending: false });
 
   if (error) throw error;
@@ -188,6 +189,7 @@ export const updateCallSlot = async (
       .from('call_slots')
       .select('scheduled_start_time, duration_minutes')
       .eq('id', callSlotId)
+      .is('deleted_at', null)
       .single();
     
     if (existingSlot) {
@@ -202,6 +204,7 @@ export const updateCallSlot = async (
     .from('call_slots')
     .update(updateData)
     .eq('id', callSlotId)
+    .is('deleted_at', null)
     .select()
     .single();
 
@@ -209,12 +212,13 @@ export const updateCallSlot = async (
   return data;
 };
 
-// Call Slotを削除
+// Call Slotを削除（論理削除）
 export const deleteCallSlot = async (callSlotId: string): Promise<void> => {
   const { error } = await supabase
     .from('call_slots')
-    .delete()
-    .eq('id', callSlotId);
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', callSlotId)
+    .is('deleted_at', null); // 既に削除されているものは更新しない
 
   if (error) throw error;
 };
@@ -228,6 +232,7 @@ export const toggleCallSlotPublish = async (
     .from('call_slots')
     .update({ is_published: isPublished })
     .eq('id', callSlotId)
+    .is('deleted_at', null)
     .select()
     .single();
 

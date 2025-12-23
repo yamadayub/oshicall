@@ -80,6 +80,7 @@ export default function Home() {
             )
           `)
           .in('status', ['active', 'ended'])
+          .is('call_slots.deleted_at', null)
           .order('end_time', { ascending: false })
           .limit(50); // Limit to 50 for performance
 
