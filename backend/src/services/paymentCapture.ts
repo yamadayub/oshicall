@@ -13,10 +13,16 @@ interface TalkCompletionCheck {
 /**
  * Talkが正常に完了したかを判定
  *
- * 課金条件:
- * 1. インフルエンサーが参加した
- * 2. Daily.coルームが「規定時間経過による自動終了」になった
- * 3. インフルエンサーが既定時間の最初から最後まで途中退室なしで参加した
+ * 課金条件（すべて満たす必要がある）:
+ * 1. インフルエンサーが参加した（participant.joinedイベントが存在）
+ * 2. Daily.coルームが「規定時間経過による自動終了」になった（room_end_reason === 'duration'）
+ * 3. インフルエンサーが予定開始時刻から予定終了時刻まで途中退室なしで参加した
+ *    - 予定開始時刻より前に参加している場合はOK（待機室からの参加）
+ *    - 予定開始時刻より後に参加した場合はNG（最初から参加していない）
+ *    - 予定終了時刻まで参加している必要がある
+ *
+ * 注意: Call slotの開始時刻と終了時刻が守られるべきで、
+ *       両者が参加してからXX分間という仕様ではない
  *
  * @param supabase Supabaseクライアント
  * @param purchasedSlotId purchased_slotsのID
@@ -164,13 +170,17 @@ export async function shouldCaptureTalkPayment(
 }
 
 /**
- * インフルエンサーが既定時間の最初から最後まで途中退室なしで参加したかチェック
+ * インフルエンサーが予定開始時刻から予定終了時刻まで途中退室なしで参加したかチェック
+ * 
+ * 判定条件:
+ * 1. 最初の参加時刻が予定開始時刻より前または同じ（予定開始時刻より後の参加は不可）
+ * 2. 予定終了時刻まで参加していた（退出イベントがない、または予定終了時刻以降に退出）
  * 
  * @param events イベントログ配列
  * @param influencerUserId インフルエンサーのユーザーID
- * @param scheduledStartTime 予定開始時刻
- * @param scheduledEndTime 予定終了時刻
- * @returns true: 最初から最後まで参加、false: 途中退室あり
+ * @param scheduledStartTime 予定開始時刻（Call slotの開始時刻）
+ * @param scheduledEndTime 予定終了時刻（Call slotの終了時刻）
+ * @returns true: 予定開始時刻から予定終了時刻まで参加、false: 条件未満足
  */
 function hasInfluencerStayedFromStartToEnd(
   events: any[],
@@ -216,32 +226,37 @@ function hasInfluencerStayedFromStartToEnd(
 
   const roomEndTime = new Date(roomEndEvent.created_at);
 
-  // 4. 退出イベントがない場合 = 最後まで参加していた
+  // 4. 最初の参加時刻が予定開始時刻より後なら、最初から参加していない
+  if (firstJoinTime > scheduledStartTime) {
+    console.log('⚠️ インフルエンサーが予定開始時刻より後に参加:', {
+      firstJoinTime: firstJoinTime.toISOString(),
+      scheduledStartTime: scheduledStartTime.toISOString()
+    });
+    return false;
+  }
+
+  // 5. 退出イベントがない場合 = 最後まで参加していた
   if (influencerLeftEvents.length === 0) {
-    // 開始時刻から終了時刻まで参加していたか確認
-    // 開始時刻前に入室している場合は開始時刻からカウント
-    const effectiveStartTime = firstJoinTime > scheduledStartTime 
-      ? firstJoinTime 
-      : scheduledStartTime;
-    
+    // 予定開始時刻から予定終了時刻まで参加していたか確認
+    // 開始時刻前に入室している場合は予定開始時刻からカウント
     // 終了時刻まで参加していたか
     return roomEndTime >= scheduledEndTime;
   }
 
-  // 5. 退出イベントがある場合、開始時刻から終了時刻までの間に退出していないか確認
+  // 6. 退出イベントがある場合、予定開始時刻から予定終了時刻までの間に退出していないか確認
   const lastLeftTime = influencerLeftEvents.reduce((latest, e) => {
     const eventTime = new Date(e.created_at);
     return eventTime > latest ? eventTime : latest;
   }, new Date(influencerLeftEvents[0].created_at));
 
-  // 開始時刻から終了時刻までの間に退出していないか
-  // 終了時刻より後に退出した場合は問題なし（正常終了）
+  // 予定開始時刻から予定終了時刻までの間に退出していないか
+  // 予定終了時刻より後に退出した場合は問題なし（正常終了）
   if (lastLeftTime < scheduledEndTime) {
-    // 終了時刻より前に退出 = 途中退室
+    // 予定終了時刻より前に退出 = 途中退室
     return false;
   }
 
-  // 終了時刻以降に退出 = 正常終了（最後まで参加）
+  // 予定終了時刻以降に退出 = 正常終了（最後まで参加）
   return true;
 }
 
