@@ -106,6 +106,15 @@ export default function Talk() {
 
       const { data: allPurchasedSlots, error: queryError } = await query;
 
+      console.log('🔍 [handleTalkSelect] purchased_slots検索結果:', {
+        'talkId': talk.id,
+        'userId': supabaseUser?.id,
+        'isInfluencer': isInfluencer,
+        'allPurchasedSlots': allPurchasedSlots,
+        '取得件数': allPurchasedSlots?.length || 0,
+        'queryError': queryError,
+      });
+
       if (queryError) {
         console.error('❌ [handleTalkSelect] purchased_slots検索エラー:', {
           error: queryError,
@@ -131,14 +140,32 @@ export default function Talk() {
       // 取得したpurchased_slotsから、現在のユーザーに関連するものを探す
       let purchasedSlot = null;
       if (allPurchasedSlots && allPurchasedSlots.length > 0) {
+        console.log('🔍 [handleTalkSelect] purchased_slotsから検索:', {
+          'allPurchasedSlots': allPurchasedSlots.map((ps: any) => ({
+            id: ps.id,
+            fan_user_id: ps.fan_user_id,
+            influencer_user_id: ps.influencer_user_id,
+          })),
+          'currentUserId': supabaseUser?.id,
+        });
+
         if (isInfluencer && supabaseUser?.id) {
           purchasedSlot = allPurchasedSlots.find(ps => ps.influencer_user_id === supabaseUser.id);
+          console.log('🔍 [handleTalkSelect] インフルエンサー検索結果:', purchasedSlot);
         } else if (!isInfluencer && supabaseUser?.id) {
           purchasedSlot = allPurchasedSlots.find(ps => ps.fan_user_id === supabaseUser.id);
+          console.log('🔍 [handleTalkSelect] ファン検索結果:', purchasedSlot);
         } else {
           // ユーザー情報がない場合は最初のものを使用
           purchasedSlot = allPurchasedSlots[0];
+          console.log('🔍 [handleTalkSelect] ユーザー情報なし、最初のものを使用:', purchasedSlot);
         }
+      } else {
+        console.warn('⚠️ [handleTalkSelect] purchased_slotsが0件:', {
+          'talkId': talk.id,
+          'userId': supabaseUser?.id,
+          'isInfluencer': isInfluencer,
+        });
       }
 
       if (purchasedSlot && purchasedSlot.id) {

@@ -187,24 +187,56 @@ export default function TalkDetail() {
               // ログインしていないユーザーの場合も終了画面を表示
             } else {
               // purchased_slotsを取得して、purchased_slot_idを確認
+              console.log('🔍 [TalkDetail] purchased_slotsを検索中:', {
+                'talkId': talkId,
+                'userId': supabaseUser.id,
+                'current_winner_id': data.current_winner_id,
+              });
+
               const { data: purchasedSlot, error: purchasedError } = await supabase
                 .from('purchased_slots')
                 .select('id, fan_user_id, influencer_user_id')
                 .eq('call_slot_id', talkId)
                 .maybeSingle();
 
+              console.log('🔍 [TalkDetail] purchased_slots検索結果:', {
+                'purchasedSlot': purchasedSlot,
+                'purchasedError': purchasedError,
+                'errorCode': purchasedError?.code,
+                'errorMessage': purchasedError?.message,
+              });
+
               if (!purchasedError && purchasedSlot) {
                 // purchased_slotが存在する場合
                 const isFan = purchasedSlot.fan_user_id === supabaseUser.id;
                 const isInfluencer = purchasedSlot.influencer_user_id === supabaseUser.id;
 
+                console.log('🔍 [TalkDetail] ユーザー判定:', {
+                  'isFan': isFan,
+                  'isInfluencer': isInfluencer,
+                  'fan_user_id': purchasedSlot.fan_user_id,
+                  'influencer_user_id': purchasedSlot.influencer_user_id,
+                  'current_user_id': supabaseUser.id,
+                });
+
                 if (isFan || isInfluencer) {
                   // 落札者またはインフルエンサーの場合、直接Talk画面にリダイレクト
-                  console.log('✅ purchased_slotが見つかりました。Talk画面にリダイレクト:', purchasedSlot.id);
+                  console.log('✅ [TalkDetail] purchased_slotが見つかりました。Talk画面にリダイレクト:', purchasedSlot.id);
                   setIsLoading(false); // ローディングを解除
                   navigate(`/call/${purchasedSlot.id}`);
                   return; // 早期リターンでオークション完了モーダルを表示しない
+                } else {
+                  console.warn('⚠️ [TalkDetail] purchased_slotは存在するが、ユーザーが関係者ではありません:', {
+                    'purchasedSlot': purchasedSlot,
+                    'current_user_id': supabaseUser.id,
+                  });
                 }
+              } else {
+                console.warn('⚠️ [TalkDetail] purchased_slotが見つかりません:', {
+                  'purchasedError': purchasedError,
+                  'talkId': talkId,
+                  'userId': supabaseUser.id,
+                });
               }
 
               // purchased_slotが存在しない、または関係者でない場合のみ、オークション完了モーダルを表示
