@@ -186,6 +186,28 @@ export default function TalkDetail() {
               console.log('⚠️ ログインしていないユーザー');
               // ログインしていないユーザーの場合も終了画面を表示
             } else {
+              // purchased_slotsを取得して、purchased_slot_idを確認
+              const { data: purchasedSlot, error: purchasedError } = await supabase
+                .from('purchased_slots')
+                .select('id, fan_user_id, influencer_user_id')
+                .eq('call_slot_id', talkId)
+                .maybeSingle();
+
+              if (!purchasedError && purchasedSlot) {
+                // purchased_slotが存在する場合
+                const isFan = purchasedSlot.fan_user_id === supabaseUser.id;
+                const isInfluencer = purchasedSlot.influencer_user_id === supabaseUser.id;
+
+                if (isFan || isInfluencer) {
+                  // 落札者またはインフルエンサーの場合、直接Talk画面にリダイレクト
+                  console.log('✅ purchased_slotが見つかりました。Talk画面にリダイレクト:', purchasedSlot.id);
+                  setIsLoading(false); // ローディングを解除
+                  navigate(`/call/${purchasedSlot.id}`);
+                  return; // 早期リターンでオークション完了モーダルを表示しない
+                }
+              }
+
+              // purchased_slotが存在しない、または関係者でない場合のみ、オークション完了モーダルを表示
               // 落札者かどうかを判定（current_winner_idを使用）
               const userIsWinner = data.current_winner_id === supabaseUser.id;
               setIsWinner(userIsWinner);
