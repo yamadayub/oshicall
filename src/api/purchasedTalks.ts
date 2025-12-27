@@ -4,6 +4,7 @@ import { TalkSession } from '../types';
 export const getPurchasedTalks = async (userId: string) => {
   try {
     // 新スキーマ: call_slotsから直接fan_user_idでフィルタリング
+    // purchased_slotsはリレーションではなく直接クエリで取得（RLS問題を回避）
     const { data: callSlots, error } = await supabase
       .from('call_slots')
       .select(`
@@ -19,12 +20,6 @@ export const getPurchasedTalks = async (userId: string) => {
           display_name,
           profile_image_url,
           average_rating
-        ),
-        purchased_slots (
-          id,
-          purchased_at,
-          call_status,
-          winning_bid_amount
         )
       `)
       .eq('fan_user_id', userId)
@@ -41,6 +36,29 @@ export const getPurchasedTalks = async (userId: string) => {
       return [];
     }
 
+    // call_slot_idのリストを取得
+    const callSlotIds = callSlots.map((cs: any) => cs.id);
+
+    // purchased_slotsを直接クエリで取得（RLSが正しく適用される）
+    const { data: purchasedSlots, error: purchasedError } = await supabase
+      .from('purchased_slots')
+      .select('id, call_slot_id, purchased_at, call_status, winning_bid_amount')
+      .in('call_slot_id', callSlotIds)
+      .eq('fan_user_id', userId); // RLSを確実に通過させるため、fan_user_idでフィルタリング
+
+    if (purchasedError) {
+      console.error('❌ [getPurchasedTalks] purchased_slots取得エラー:', purchasedError);
+      // エラーが発生しても続行（purchased_slotsが取得できない場合でもcall_slotsは表示）
+    }
+
+    // purchased_slotsをcall_slot_idでマップ化
+    const purchasedSlotsMap: { [key: string]: any } = {};
+    if (purchasedSlots && purchasedSlots.length > 0) {
+      purchasedSlots.forEach((ps: any) => {
+        purchasedSlotsMap[ps.call_slot_id] = ps;
+      });
+    }
+
     // ファン情報をusersテーブルから取得
     const { data: fanUser, error: fanError } = await supabase
       .from('users')
@@ -55,7 +73,7 @@ export const getPurchasedTalks = async (userId: string) => {
     // TalkSession形式に変換
     const talkSessions: TalkSession[] = callSlots.map((callSlot: any) => {
       const influencer = callSlot.influencer; // user_idリレーション
-      const purchasedSlot = callSlot.purchased_slots?.[0]; // 1:1関係
+      const purchasedSlot = purchasedSlotsMap[callSlot.id]; // マップから取得
 
       // call_slotsからuser_id（インフルエンサー）とfan_user_id（ファン）を取得
       const influencerUserId = callSlot.user_id; // インフルエンサーのuser_id
@@ -182,13 +200,6 @@ export const getInfluencerHostedTalks = async (userId: string) => {
           bio,
           average_rating
         ),
-        purchased_slots (
-          id,
-          fan_user_id,
-          purchased_at,
-          call_status,
-          winning_bid_amount
-        ),
         auctions (
           id,
           status,
@@ -230,6 +241,29 @@ export const getInfluencerHostedTalks = async (userId: string) => {
 
     if (filteredCallSlots.length === 0) {
       return [];
+    }
+
+    // call_slot_idのリストを取得
+    const callSlotIds = filteredCallSlots.map((cs: any) => cs.id);
+
+    // purchased_slotsを直接クエリで取得（RLSが正しく適用される）
+    const { data: purchasedSlots, error: purchasedError } = await supabase
+      .from('purchased_slots')
+      .select('id, call_slot_id, fan_user_id, purchased_at, call_status, winning_bid_amount')
+      .in('call_slot_id', callSlotIds)
+      .eq('influencer_user_id', userId); // RLSを確実に通過させるため、influencer_user_idでフィルタリング
+
+    if (purchasedError) {
+      console.error('❌ [getInfluencerHostedTalks] purchased_slots取得エラー:', purchasedError);
+      // エラーが発生しても続行（purchased_slotsが取得できない場合でもcall_slotsは表示）
+    }
+
+    // purchased_slotsをcall_slot_idでマップ化
+    const purchasedSlotsMap: { [key: string]: any } = {};
+    if (purchasedSlots && purchasedSlots.length > 0) {
+      purchasedSlots.forEach((ps: any) => {
+        purchasedSlotsMap[ps.call_slot_id] = ps;
+      });
     }
 
     // call_slotsからfan_user_idのリストを取得（フィルタリング後のスロットから）
@@ -298,7 +332,7 @@ export const getInfluencerHostedTalks = async (userId: string) => {
     // TalkSession形式に変換
     // インフルエンサー視点では、influencerオブジェクトに落札者（ファン）の情報を設定
     const talkSessions: TalkSession[] = filteredCallSlots.map((callSlot: any) => {
-      const purchasedSlot = callSlot.purchased_slots?.[0]; // 1:1関係
+      const purchasedSlot = purchasedSlotsMap[callSlot.id]; // マップから取得
       const auction = Array.isArray(callSlot.auctions) ? callSlot.auctions[0] : callSlot.auctions;
 
       // call_slotsからuser_id（ホスト=自分）とfan_user_id（落札者）を取得
@@ -338,8 +372,7 @@ export const getInfluencerHostedTalks = async (userId: string) => {
       console.log('  users.bio:', fan?.bio || '(未取得)');
       console.log('  fanUsersMapに存在:', fanUserId ? (fanUsersMap[String(fanUserId)] ? 'あり' : 'なし') : 'N/A');
       console.log('  === purchased_slots情報 ===');
-      console.log('  purchased_slot (raw):', purchasedSlot);
-      console.log('  call_slot.purchased_slots (raw):', callSlot.purchased_slots);
+      console.log('  purchased_slot (from map):', purchasedSlot);
       console.log('  purchased_slot.id:', purchasedSlot?.id);
       console.log('  purchased_slot.call_status:', purchasedSlot?.call_status);
       console.log('  purchased_slot.winning_bid_amount:', purchasedSlot?.winning_bid_amount);

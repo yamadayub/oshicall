@@ -84,6 +84,7 @@ export default function Talk() {
     }
 
     // if purchased_slot_id is missing, try to find it (for both influencers and fans)
+    // これは通常発生しないはず（purchasedTalks.tsで取得済み）が、念のためフォールバック処理を実装
     try {
       let query = supabase
         .from('purchased_slots')
@@ -101,16 +102,54 @@ export default function Talk() {
 
       const { data, error } = await query.maybeSingle();
 
-      if (!error && data) {
+      if (error) {
+        // RLSエラーやその他のエラーの場合
+        console.error('❌ [handleTalkSelect] purchased_slots取得エラー:', {
+          error,
+          errorCode: error.code,
+          errorMessage: error.message,
+          talkId: talk.id,
+          userId: supabaseUser?.id,
+          isInfluencer,
+        });
+        
+        // RLSエラー（PGRST301）の場合は、データが存在しない可能性が高い
+        // オークション完了画面に遷移する
+        if (error.code === 'PGRST301' || error.code === '42501') {
+          console.warn('⚠️ [handleTalkSelect] RLSエラー: purchased_slotsにアクセスできません。オークション完了画面に遷移します。');
+          navigate(`/talk/${talk.id}`);
+          return;
+        }
+        
+        // その他のエラーの場合もオークション完了画面に遷移
+        navigate(`/talk/${talk.id}`);
+        return;
+      }
+
+      if (data && data.id) {
+        // purchased_slotが見つかった場合
+        console.log('✅ [handleTalkSelect] purchased_slotを取得:', data.id);
         navigate(`/call/${data.id}`);
         return;
       }
-    } catch (err) {
-      console.error('Error fetching purchased slot:', err);
-    }
 
-    // Fallback to talk-detail instead of live-talk for unpurchased/hosting talks
-    navigate(`/talk/${talk.id}`);
+      // purchased_slotが見つからない場合
+      // これは通常発生しないはず（オークション完了後はpurchased_slotsが作成される）
+      console.warn('⚠️ [handleTalkSelect] purchased_slotが見つかりません:', {
+        talkId: talk.id,
+        userId: supabaseUser?.id,
+        isInfluencer,
+        talkStatus: talk.status,
+        auctionStatus: talk.auction_status,
+      });
+      
+      // オークション完了画面に遷移
+      navigate(`/talk/${talk.id}`);
+    } catch (err) {
+      console.error('❌ [handleTalkSelect] 予期しないエラー:', err);
+      // エラーが発生した場合もオークション完了画面に遷移
+      navigate(`/talk/${talk.id}`);
+    }
   };
 
   const tabs = [
