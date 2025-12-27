@@ -388,19 +388,30 @@ export const getInfluencerHostedTalks = async (userId: string) => {
 
       // status判定ロジック:
       // 1. オークションがアクティブな場合 → 'active'
-      // 2. オークションが終了していて、purchasedSlotが存在する場合 → 'completed' (SOLD OUT表示)
-      // 3. purchasedSlotが存在し、Talkがまだ終了していない場合 → 'won'
-      // 4. purchasedSlotが存在し、Talkが終了している場合 → 'completed'
-      // 5. purchasedSlotが存在しない場合 → 'upcoming'
+      // 2. purchasedSlotが存在する場合：
+      //    - オークション終了済み、またはオークション終了時刻を過ぎている場合 → 'completed' (SOLD OUT表示)
+      //    - Talkがまだ終了していない場合 → 'won'
+      //    - Talkが終了している場合 → 'completed'
+      // 3. purchasedSlotが存在しない場合 → 'upcoming'
       let status: TalkSession['status'];
       if (isAuctionActive) {
         status = 'active';
-      } else if (isAuctionEnded && purchasedSlot) {
-        // オークション終了済みで落札されている場合は'completed'（SOLD OUT表示）
-        status = 'completed';
       } else if (purchasedSlot) {
-        // purchasedSlotが存在する場合、Talkの終了状態で判定
-        status = isUpcoming ? 'won' : 'completed';
+        // purchasedSlotが存在する場合
+        // オークション終了済み、またはオークション終了時刻を過ぎている場合は'completed'（SOLD OUT表示）
+        const auctionEndTime = auction?.auction_end_time || auction?.end_time;
+        const isAuctionTimeEnded = auctionEndTime ? new Date(auctionEndTime) <= now : false;
+        
+        if (isAuctionEnded || isAuctionTimeEnded) {
+          // オークション終了済みで落札されている場合は'completed'（SOLD OUT表示）
+          status = 'completed';
+        } else if (isUpcoming) {
+          // Talkがまだ終了していない場合
+          status = 'won';
+        } else {
+          // Talkが終了している場合
+          status = 'completed';
+        }
       } else {
         // purchasedSlotが存在しない場合
         status = 'upcoming';
