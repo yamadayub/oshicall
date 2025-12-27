@@ -38,6 +38,12 @@ export const getPurchasedTalks = async (userId: string) => {
 
     // call_slot_idのリストを取得
     const callSlotIds = callSlots.map((cs: any) => cs.id);
+    
+    console.log('🔍 [getPurchasedTalks] call_slots取得結果:', {
+      'callSlots件数': callSlots.length,
+      'callSlotIds': callSlotIds,
+      'userId': userId,
+    });
 
     // purchased_slotsを直接クエリで取得（RLSが正しく適用される）
     const { data: purchasedSlots, error: purchasedError } = await supabase
@@ -45,6 +51,18 @@ export const getPurchasedTalks = async (userId: string) => {
       .select('id, call_slot_id, purchased_at, call_status, winning_bid_amount')
       .in('call_slot_id', callSlotIds)
       .eq('fan_user_id', userId); // RLSを確実に通過させるため、fan_user_idでフィルタリング
+
+    console.log('🔍 [getPurchasedTalks] purchased_slots取得結果:', {
+      'purchasedSlots件数': purchasedSlots?.length || 0,
+      'purchasedSlots': purchasedSlots,
+      'purchasedError': purchasedError,
+      'callSlotIds': callSlotIds,
+      'userId': userId,
+      'クエリ条件': {
+        'call_slot_id IN': callSlotIds,
+        'fan_user_id': userId,
+      },
+    });
 
     if (purchasedError) {
       console.error('❌ [getPurchasedTalks] purchased_slots取得エラー:', purchasedError);
