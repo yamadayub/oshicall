@@ -57,6 +57,21 @@ export const getPurchasedTalks = async (userId: string) => {
       purchasedSlots.forEach((ps: any) => {
         purchasedSlotsMap[ps.call_slot_id] = ps;
       });
+      console.log('✅ [getPurchasedTalks] purchasedSlotsMap作成完了:', {
+        '取得件数': purchasedSlots.length,
+        'マップのキー': Object.keys(purchasedSlotsMap),
+        'マップの内容': Object.entries(purchasedSlotsMap).map(([k, v]: [string, any]) => ({
+          call_slot_id: k,
+          purchased_slot_id: v.id,
+        })),
+      });
+    } else {
+      console.warn('⚠️ [getPurchasedTalks] purchased_slotsが取得できませんでした:', {
+        'callSlotIds': callSlotIds,
+        'userId': userId,
+        'purchasedSlots': purchasedSlots,
+        'purchasedError': purchasedError,
+      });
     }
 
     // ファン情報をusersテーブルから取得
@@ -74,6 +89,13 @@ export const getPurchasedTalks = async (userId: string) => {
     const talkSessions: TalkSession[] = callSlots.map((callSlot: any) => {
       const influencer = callSlot.influencer; // user_idリレーション
       const purchasedSlot = purchasedSlotsMap[callSlot.id]; // マップから取得
+      
+      console.log('🔍 [getPurchasedTalks] purchasedSlot取得:', {
+        'callSlot.id': callSlot.id,
+        'purchasedSlot': purchasedSlot,
+        'purchased_slot_id': purchasedSlot?.id,
+        'マップに存在': purchasedSlotsMap[callSlot.id] ? 'あり' : 'なし',
+      });
 
       // call_slotsからuser_id（インフルエンサー）とfan_user_id（ファン）を取得
       const influencerUserId = callSlot.user_id; // インフルエンサーのuser_id
@@ -264,6 +286,21 @@ export const getInfluencerHostedTalks = async (userId: string) => {
       purchasedSlots.forEach((ps: any) => {
         purchasedSlotsMap[ps.call_slot_id] = ps;
       });
+      console.log('✅ [getInfluencerHostedTalks] purchasedSlotsMap作成完了:', {
+        '取得件数': purchasedSlots.length,
+        'マップのキー': Object.keys(purchasedSlotsMap),
+        'マップの内容': Object.entries(purchasedSlotsMap).map(([k, v]: [string, any]) => ({
+          call_slot_id: k,
+          purchased_slot_id: v.id,
+        })),
+      });
+    } else {
+      console.warn('⚠️ [getInfluencerHostedTalks] purchased_slotsが取得できませんでした:', {
+        'callSlotIds': callSlotIds,
+        'userId': userId,
+        'purchasedSlots': purchasedSlots,
+        'purchasedError': purchasedError,
+      });
     }
 
     // call_slotsからfan_user_idのリストを取得（フィルタリング後のスロットから）
@@ -334,6 +371,13 @@ export const getInfluencerHostedTalks = async (userId: string) => {
     const talkSessions: TalkSession[] = filteredCallSlots.map((callSlot: any) => {
       const purchasedSlot = purchasedSlotsMap[callSlot.id]; // マップから取得
       const auction = Array.isArray(callSlot.auctions) ? callSlot.auctions[0] : callSlot.auctions;
+      
+      console.log('🔍 [getInfluencerHostedTalks] purchasedSlot取得:', {
+        'callSlot.id': callSlot.id,
+        'purchasedSlot': purchasedSlot,
+        'purchased_slot_id': purchasedSlot?.id,
+        'マップに存在': purchasedSlotsMap[callSlot.id] ? 'あり' : 'なし',
+      });
 
       // call_slotsからuser_id（ホスト=自分）とfan_user_id（落札者）を取得
       const hostUserId = callSlot.user_id; // ホスト（インフルエンサー）のID

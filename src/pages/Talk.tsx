@@ -77,45 +77,47 @@ export default function Talk() {
   // ... (existing imports)
 
   const handleTalkSelect = async (talk: TalkSession) => {
+    console.log('🔵 [handleTalkSelect] Talk枠をタップ:', {
+      talkId: talk.id,
+      purchased_slot_id: talk.purchased_slot_id,
+      status: talk.status,
+      auction_status: talk.auction_status,
+      userId: supabaseUser?.id,
+      isInfluencer,
+    });
+
     // Navigate to the call page if purchased_slot_id exists
     if (talk.purchased_slot_id) {
+      console.log('✅ [handleTalkSelect] purchased_slot_idが存在します。Talk画面に遷移:', talk.purchased_slot_id);
       navigate(`/call/${talk.purchased_slot_id}`);
       return;
     }
 
+    console.log('⚠️ [handleTalkSelect] purchased_slot_idが存在しません。purchased_slotsテーブルから検索します...');
+
     // if purchased_slot_id is missing, try to find it (for both influencers and fans)
     // これは通常発生しないはず（purchasedTalks.tsで取得済み）が、念のためフォールバック処理を実装
     try {
+      // まず、call_slot_idだけで検索（RLSが適用される）
       let query = supabase
         .from('purchased_slots')
-        .select('id')
+        .select('id, fan_user_id, influencer_user_id')
         .eq('call_slot_id', talk.id);
 
-      // インフルエンサーの場合、influencer_user_idでフィルタリング
-      if (isInfluencer && supabaseUser?.id) {
-        query = query.eq('influencer_user_id', supabaseUser.id);
-      }
-      // ファンの場合、fan_user_idでフィルタリング
-      else if (!isInfluencer && supabaseUser?.id) {
-        query = query.eq('fan_user_id', supabaseUser.id);
-      }
+      const { data: allPurchasedSlots, error: queryError } = await query;
 
-      const { data, error } = await query.maybeSingle();
-
-      if (error) {
-        // RLSエラーやその他のエラーの場合
-        console.error('❌ [handleTalkSelect] purchased_slots取得エラー:', {
-          error,
-          errorCode: error.code,
-          errorMessage: error.message,
+      if (queryError) {
+        console.error('❌ [handleTalkSelect] purchased_slots検索エラー:', {
+          error: queryError,
+          errorCode: queryError.code,
+          errorMessage: queryError.message,
           talkId: talk.id,
           userId: supabaseUser?.id,
           isInfluencer,
         });
         
         // RLSエラー（PGRST301）の場合は、データが存在しない可能性が高い
-        // オークション完了画面に遷移する
-        if (error.code === 'PGRST301' || error.code === '42501') {
+        if (queryError.code === 'PGRST301' || queryError.code === '42501') {
           console.warn('⚠️ [handleTalkSelect] RLSエラー: purchased_slotsにアクセスできません。オークション完了画面に遷移します。');
           navigate(`/talk/${talk.id}`);
           return;
@@ -126,10 +128,23 @@ export default function Talk() {
         return;
       }
 
-      if (data && data.id) {
+      // 取得したpurchased_slotsから、現在のユーザーに関連するものを探す
+      let purchasedSlot = null;
+      if (allPurchasedSlots && allPurchasedSlots.length > 0) {
+        if (isInfluencer && supabaseUser?.id) {
+          purchasedSlot = allPurchasedSlots.find(ps => ps.influencer_user_id === supabaseUser.id);
+        } else if (!isInfluencer && supabaseUser?.id) {
+          purchasedSlot = allPurchasedSlots.find(ps => ps.fan_user_id === supabaseUser.id);
+        } else {
+          // ユーザー情報がない場合は最初のものを使用
+          purchasedSlot = allPurchasedSlots[0];
+        }
+      }
+
+      if (purchasedSlot && purchasedSlot.id) {
         // purchased_slotが見つかった場合
-        console.log('✅ [handleTalkSelect] purchased_slotを取得:', data.id);
-        navigate(`/call/${data.id}`);
+        console.log('✅ [handleTalkSelect] purchased_slotを取得:', purchasedSlot.id);
+        navigate(`/call/${purchasedSlot.id}`);
         return;
       }
 
