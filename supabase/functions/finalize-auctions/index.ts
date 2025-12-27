@@ -361,8 +361,9 @@ Deno.serve(async (req) => {
     // 1. 終了したオークションを取得
     const now = new Date().toISOString();
 
-    // activeステータスのオークションのみを対象にする（処理済みのendedは除外）
-    const { data: endedAuctions, error: auctionsError } = await supabase
+    // activeステータスのオークション、またはendedだがpurchased_slotsが未作成のオークションを対象
+    // まず、activeステータスのオークションを取得
+    const { data: activeEndedAuctions, error: activeAuctionsError } = await supabase
       .from('auctions')
       .select(`
         id,
@@ -376,6 +377,54 @@ Deno.serve(async (req) => {
       .eq('status', 'active')
       .lte('end_time', now);
 
+    if (activeAuctionsError) {
+      throw activeAuctionsError;
+    }
+
+    // 次に、endedステータスだがpurchased_slotsが未作成のオークションを取得
+    const { data: endedWithoutPurchasedSlots, error: endedAuctionsError } = await supabase
+      .from('auctions')
+      .select(`
+        id,
+        call_slot_id,
+        end_time,
+        current_highest_bid,
+        current_winner_id,
+        status,
+        call_slots!inner(user_id)
+      `)
+      .eq('status', 'ended')
+      .lte('end_time', now)
+      .not('current_winner_id', 'is', null)
+      .not('current_highest_bid', 'is', null);
+
+    if (endedAuctionsError) {
+      throw endedAuctionsError;
+    }
+
+    // purchased_slotsが未作成のオークションのみをフィルタリング
+    let endedAuctionsToProcess: any[] = [];
+    if (endedWithoutPurchasedSlots && endedWithoutPurchasedSlots.length > 0) {
+      for (const auction of endedWithoutPurchasedSlots) {
+        const { data: existingPurchasedSlot } = await supabase
+          .from('purchased_slots')
+          .select('id')
+          .eq('auction_id', auction.id)
+          .limit(1)
+          .maybeSingle();
+
+        if (!existingPurchasedSlot) {
+          endedAuctionsToProcess.push(auction);
+        }
+      }
+    }
+
+    // 両方の結果をマージ
+    const endedAuctions = [
+      ...(activeEndedAuctions || []),
+      ...endedAuctionsToProcess
+    ];
+
     if (auctionsError) {
       throw auctionsError;
     }
@@ -387,7 +436,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    console.log(`🔵 ${endedAuctions.length}件のオークションを処理します`);
+    console.log(`🔵 ${endedAuctions.length}件のオークションを処理します（active: ${activeEndedAuctions?.length || 0}件、ended（purchased_slots未作成）: ${endedAuctionsToProcess.length}件）`);
 
     const results = [];
 
@@ -466,6 +515,8 @@ Deno.serve(async (req) => {
             console.log(`✅ call_slots情報更新成功 (fan_user_id=${fanUserId} set to call_slot_id=${auction.call_slot_id})`);
 
             // purchased_slotsテーブルに記録
+            // 注意: stripe_payment_intent_idはpurchased_slotsテーブルには保存されません
+            //       payment_transactionsテーブルに保存されます
             const { data: purchasedSlot, error: purchaseError } = await supabase
               .from('purchased_slots')
               .insert({
@@ -476,7 +527,6 @@ Deno.serve(async (req) => {
                 winning_bid_amount: highestBid.bid_amount,
                 platform_fee: platformFee,
                 influencer_payout: influencerPayout,
-                stripe_payment_intent_id: highestBid.stripe_payment_intent_id,
                 call_status: 'pending', // Talk完了後に決済確定
               })
               .select()
@@ -706,16 +756,16 @@ Deno.serve(async (req) => {
             console.error(`❌ purchased_slots作成エラー: ${purchaseError.message}`);
 
             // オークションを終了状態に更新（エラーでも続行）
-            await supabase
-              .from('auctions')
-              .update({ status: 'ended', current_winner_id: highestBid.user_id })
-              .eq('id', auctionId);
+              await supabase
+                .from('auctions')
+                .update({ status: 'ended', current_winner_id: highestBid.user_id })
+                .eq('id', auctionId);
 
-            results.push({
-              auction_id: auctionId,
+              results.push({
+                auction_id: auctionId,
               status: 'purchase_failed',
               error: purchaseError.message,
-            });
+              });
           }
         }
       } catch (error: any) {
