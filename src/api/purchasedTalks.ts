@@ -348,6 +348,7 @@ export const getInfluencerHostedTalks = async (userId: string) => {
 
       // オークション期間中かどうかを判定
       const isAuctionActive = auction && (auction.status === 'active' || auction.status === 'scheduled');
+      const isAuctionEnded = auction && auction.status === 'ended';
       const isUpcoming = (talkEndTime > now && purchasedSlot?.call_status !== 'completed') || isAuctionActive;
 
       // 詳細ログ: 各Talk枠について、call_slotsとusersテーブルの情報をまとめて出力
@@ -376,10 +377,34 @@ export const getInfluencerHostedTalks = async (userId: string) => {
       console.log('  purchased_slot.id:', purchasedSlot?.id);
       console.log('  purchased_slot.call_status:', purchasedSlot?.call_status);
       console.log('  purchased_slot.winning_bid_amount:', purchasedSlot?.winning_bid_amount);
+      console.log('  === オークション情報 ===');
+      console.log('  auction.status:', auction?.status);
+      console.log('  isAuctionActive:', isAuctionActive);
+      console.log('  isAuctionEnded:', isAuctionEnded);
       console.log('  === デバッグ情報 ===');
       console.log('  fanUserId (call_slot.fan_user_id):', fanUserId);
       console.log('  fanUsersMap[fanUserId]:', fanUsersMap[String(fanUserId)]);
       console.log('  fanUsersMap全体のキー:', Object.keys(fanUsersMap));
+
+      // status判定ロジック:
+      // 1. オークションがアクティブな場合 → 'active'
+      // 2. オークションが終了していて、purchasedSlotが存在する場合 → 'completed' (SOLD OUT表示)
+      // 3. purchasedSlotが存在し、Talkがまだ終了していない場合 → 'won'
+      // 4. purchasedSlotが存在し、Talkが終了している場合 → 'completed'
+      // 5. purchasedSlotが存在しない場合 → 'upcoming'
+      let status: TalkSession['status'];
+      if (isAuctionActive) {
+        status = 'active';
+      } else if (isAuctionEnded && purchasedSlot) {
+        // オークション終了済みで落札されている場合は'completed'（SOLD OUT表示）
+        status = 'completed';
+      } else if (purchasedSlot) {
+        // purchasedSlotが存在する場合、Talkの終了状態で判定
+        status = isUpcoming ? 'won' : 'completed';
+      } else {
+        // purchasedSlotが存在しない場合
+        status = 'upcoming';
+      }
 
       const talkSession = {
         id: callSlot.id,
@@ -407,7 +432,7 @@ export const getInfluencerHostedTalks = async (userId: string) => {
         auction_end_time: auction?.auction_end_time || auction?.end_time || callSlot.scheduled_start_time || new Date().toISOString(),
         starting_price: purchasedSlot?.winning_bid_amount || auction?.current_highest_bid || callSlot.starting_price || 0,
         current_highest_bid: purchasedSlot?.winning_bid_amount || auction?.current_highest_bid || callSlot.starting_price || 0,
-        status: (isAuctionActive ? 'active' : (purchasedSlot ? (isUpcoming ? 'won' : 'completed') : 'upcoming')) as TalkSession['status'],
+        status: status,
         call_status: purchasedSlot?.call_status, // purchased_slots.call_statusを追加
         created_at: purchasedSlot?.purchased_at || new Date().toISOString(),
         detail_image_url: callSlot.thumbnail_url || host?.profile_image_url || '/images/talks/default.jpg',
