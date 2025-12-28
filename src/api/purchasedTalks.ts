@@ -46,11 +46,12 @@ export const getPurchasedTalks = async (userId: string) => {
     });
 
     // purchased_slotsを直接クエリで取得（RLSが正しく適用される）
+    // RLSポリシーがget_current_user_id()を使用しているため、.eq('fan_user_id', userId)は不要
+    // RLSポリシーが自動的に現在のユーザーのpurchased_slotsのみを返す
     const { data: purchasedSlots, error: purchasedError } = await supabase
       .from('purchased_slots')
       .select('id, call_slot_id, purchased_at, call_status, winning_bid_amount')
-      .in('call_slot_id', callSlotIds)
-      .eq('fan_user_id', userId); // RLSを確実に通過させるため、fan_user_idでフィルタリング
+      .in('call_slot_id', callSlotIds);
 
     console.log('🔍 [getPurchasedTalks] purchased_slots取得結果:', {
       'purchasedSlots件数': purchasedSlots?.length || 0,
@@ -287,11 +288,12 @@ export const getInfluencerHostedTalks = async (userId: string) => {
     const callSlotIds = filteredCallSlots.map((cs: any) => cs.id);
 
     // purchased_slotsを直接クエリで取得（RLSが正しく適用される）
+    // RLSポリシーがget_current_user_id()を使用しているため、.eq('influencer_user_id', userId)は不要
+    // RLSポリシーが自動的に現在のユーザーのpurchased_slotsのみを返す
     const { data: purchasedSlots, error: purchasedError } = await supabase
       .from('purchased_slots')
       .select('id, call_slot_id, fan_user_id, purchased_at, call_status, winning_bid_amount')
-      .in('call_slot_id', callSlotIds)
-      .eq('influencer_user_id', userId); // RLSを確実に通過させるため、influencer_user_idでフィルタリング
+      .in('call_slot_id', callSlotIds);
 
     if (purchasedError) {
       console.error('❌ [getInfluencerHostedTalks] purchased_slots取得エラー:', purchasedError);
