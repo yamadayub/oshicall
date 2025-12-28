@@ -73,12 +73,32 @@ export const getPurchasedTalks = async (userId: string) => {
     // purchased_slotsをcall_slot_idでマップ化
     const purchasedSlotsMap: { [key: string]: any } = {};
     if (purchasedSlots && purchasedSlots.length > 0) {
-      purchasedSlots.forEach((ps: any) => {
-        purchasedSlotsMap[ps.call_slot_id] = ps;
+      console.log('🔧 [getPurchasedTalks] purchasedSlotsMap作成開始:', {
+        'purchasedSlots件数': purchasedSlots.length,
+        'purchasedSlots詳細': purchasedSlots.map((ps: any) => ({
+          id: ps.id,
+          call_slot_id: ps.call_slot_id,
+          call_slot_id型: typeof ps.call_slot_id,
+        })),
       });
+      
+      purchasedSlots.forEach((ps: any) => {
+        const key = String(ps.call_slot_id); // 確実に文字列に変換
+        purchasedSlotsMap[key] = ps;
+        console.log('🔧 [getPurchasedTalks] マップに追加:', {
+          'key': key,
+          'key型': typeof key,
+          'purchased_slot_id': ps.id,
+          'call_slot_id': ps.call_slot_id,
+        });
+      });
+      
       console.log('✅ [getPurchasedTalks] purchasedSlotsMap作成完了:', {
         '取得件数': purchasedSlots.length,
         'マップのキー': Object.keys(purchasedSlotsMap),
+        'マップのキーの型': Object.keys(purchasedSlotsMap).map(k => typeof k),
+        '問題のcall_slot_id (85a47898-0f4b-44db-ba2c-683348fc97d5) がマップに存在するか': '85a47898-0f4b-44db-ba2c-683348fc97d5' in purchasedSlotsMap,
+        '問題のcall_slot_idの値': purchasedSlotsMap['85a47898-0f4b-44db-ba2c-683348fc97d5'],
         'マップの内容': Object.entries(purchasedSlotsMap).map(([k, v]: [string, any]) => ({
           call_slot_id: k,
           purchased_slot_id: v.id,
@@ -87,6 +107,8 @@ export const getPurchasedTalks = async (userId: string) => {
     } else {
       console.warn('⚠️ [getPurchasedTalks] purchased_slotsが取得できませんでした:', {
         'callSlotIds': callSlotIds,
+        'callSlotIds型': callSlotIds.map((id: any) => typeof id),
+        '問題のcall_slot_id (85a47898-0f4b-44db-ba2c-683348fc97d5) がcallSlotIdsに含まれているか': callSlotIds.includes('85a47898-0f4b-44db-ba2c-683348fc97d5'),
         'userId': userId,
         'purchasedSlots': purchasedSlots,
         'purchasedError': purchasedError,
@@ -107,13 +129,23 @@ export const getPurchasedTalks = async (userId: string) => {
     // TalkSession形式に変換
     const talkSessions: TalkSession[] = callSlots.map((callSlot: any) => {
       const influencer = callSlot.influencer; // user_idリレーション
-      const purchasedSlot = purchasedSlotsMap[callSlot.id]; // マップから取得
+      
+      const mapKey = String(callSlot.id); // 確実に文字列に変換
+      const purchasedSlot = purchasedSlotsMap[mapKey]; // マップから取得
       
       console.log('🔍 [getPurchasedTalks] purchasedSlot取得:', {
         'callSlot.id': callSlot.id,
+        'callSlot.id型': typeof callSlot.id,
+        'mapKey': mapKey,
+        'mapKey型': typeof mapKey,
         'purchasedSlot': purchasedSlot,
         'purchased_slot_id': purchasedSlot?.id,
-        'マップに存在': purchasedSlotsMap[callSlot.id] ? 'あり' : 'なし',
+        'マップに存在': purchasedSlot ? 'あり' : 'なし',
+        'マップの全キー': Object.keys(purchasedSlotsMap),
+        '問題のcall_slot_id (85a47898-0f4b-44db-ba2c-683348fc97d5) の場合': callSlot.id === '85a47898-0f4b-44db-ba2c-683348fc97d5' ? {
+          'マップに存在': '85a47898-0f4b-44db-ba2c-683348fc97d5' in purchasedSlotsMap,
+          'マップの値': purchasedSlotsMap['85a47898-0f4b-44db-ba2c-683348fc97d5'],
+        } : 'N/A',
       });
 
       // call_slotsからuser_id（インフルエンサー）とfan_user_id（ファン）を取得
