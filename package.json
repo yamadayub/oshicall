@@ -7,7 +7,7 @@
     "dev": "vite",
     "dev:server": "cd backend && npm run dev",
     "build": "vite build && cd backend && npm install --include=dev && npm run build",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings 0",
     "preview": "vite preview",
     "start": "NODE_ENV=production node backend/dist/server.js",
     "heroku-postbuild": "node scripts/check-env.js && npm run build",
