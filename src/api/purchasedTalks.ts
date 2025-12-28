@@ -3,6 +3,8 @@ import { TalkSession } from '../types';
 
 export const getPurchasedTalks = async (userId: string) => {
   try {
+    console.log('🚀 [getPurchasedTalks] 開始:', { userId });
+    
     // 新スキーマ: call_slotsから直接fan_user_idでフィルタリング
     // purchased_slotsはリレーションではなく直接クエリで取得（RLS問題を回避）
     const { data: callSlots, error } = await supabase
@@ -59,10 +61,8 @@ export const getPurchasedTalks = async (userId: string) => {
       'purchasedError': purchasedError,
       'callSlotIds': callSlotIds,
       'userId': userId,
-      'クエリ条件': {
-        'call_slot_id IN': callSlotIds,
-        'fan_user_id': userId,
-      },
+      '問題のcall_slot_id (85a47898-0f4b-44db-ba2c-683348fc97d5) がcallSlotIdsに含まれているか': callSlotIds.includes('85a47898-0f4b-44db-ba2c-683348fc97d5'),
+      '問題のcall_slot_idのpurchased_slotが取得できているか': purchasedSlots?.find((ps: any) => ps.call_slot_id === '85a47898-0f4b-44db-ba2c-683348fc97d5'),
     });
 
     if (purchasedError) {
