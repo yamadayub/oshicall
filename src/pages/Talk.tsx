@@ -99,7 +99,7 @@ export default function Talk() {
     // これは通常発生しないはず（purchasedTalks.tsで取得済み）が、念のためフォールバック処理を実装
     try {
       // まず、call_slot_idだけで検索（RLSが適用される）
-      let query = supabase
+      const query = supabase
         .from('purchased_slots')
         .select('id, fan_user_id, influencer_user_id')
         .eq('call_slot_id', talk.id);
