@@ -1,4 +1,8 @@
-# 決済・カード登録機能 要件定義
+# 決済・カード登録機能
+
+## 対応する業務仕様
+
+- [/docs/business/payment.md](../business/payment.md)
 
 ## 概要
 Stripe APIを使用した安全な決済処理。与信確保（Authorization）と決済確定（Capture）の2段階決済を実装。

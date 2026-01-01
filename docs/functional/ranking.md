@@ -1,4 +1,8 @@
-# ランキング機能 要件定義
+# ランキング機能
+
+## 対応する業務仕様
+
+- [/docs/business/user-management.md](../business/user-management.md) - ランキング関連
 
 ## 概要
 インフルエンサーや Talk枠の人気ランキングを表示する機能。ユーザーが人気のインフルエンサーやTalkを発見しやすくする。

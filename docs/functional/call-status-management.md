@@ -1,5 +1,9 @@
 # Call Status Management（通話ステータス管理）
 
+## 対応する業務仕様
+
+- [/docs/business/video-call.md](../business/video-call.md) の BR-006: 通話ステータス管理
+
 ## 概要
 
 `call_slots`テーブルの`status`カラムを通話ライフサイクルに応じて正しく更新する機能。通話枠の状態を`planned`（予定済み）→`live`（実施中）→`completed`（完了）と適切に遷移させ、システム全体で通話の状態を正確に追跡できるようにします。
@@ -170,9 +174,9 @@ await supabase
 
 ## 関連する他の要件
 
-- [BR-001: オークション機能](./BR-001-auction.md) - オークション終了時の`purchased_slots`作成
-- [BR-002: Talk（通話）機能](./BR-002-talk.md) - 通話終了処理
-- [BR-003: 決済機能](./BR-003-payment.md) - 通話完了後の決済処理
+- [オークション業務](../business/auction.md) - オークション終了時の`purchased_slots`作成
+- [ビデオ通話業務](../business/video-call.md) - 通話終了処理
+- [決済業務](../business/payment.md) - 通話完了後の決済処理
 
 ## 変更履歴
 

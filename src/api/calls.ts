@@ -34,9 +34,19 @@ export interface CallStatusResponse {
   duration_minutes: number;
   time_until_start_seconds: number;
   participants: {
+    influencer_entered_waiting_room: boolean;
     influencer_joined: boolean;
+    fan_entered_waiting_room: boolean;
     fan_joined: boolean;
   };
+  // タイムスタンプ情報
+  influencer_entered_waiting_room_at: string | null;
+  fan_entered_waiting_room_at: string | null;
+  influencer_joined_at: string | null;
+  fan_joined_at: string | null;
+  // 表示用ステータス
+  influencer_status: '未入室' | '待機中' | '通話中';
+  fan_status: '未入室' | '待機中' | '通話中';
   can_join: boolean;
   room_created: boolean;
 }

@@ -1,4 +1,8 @@
-# インフルエンサー管理機能 要件定義
+# インフルエンサー管理機能
+
+## 対応する業務仕様
+
+- [/docs/business/user-management.md](../business/user-management.md) - インフルエンサー管理関連
 
 ## 概要
 インフルエンサーがTalk枠を作成・管理し、売上を確認できる機能。

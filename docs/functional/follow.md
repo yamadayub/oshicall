@@ -1,4 +1,8 @@
-# フォロー機能 要件定義
+# フォロー機能
+
+## 対応する業務仕様
+
+- [/docs/business/user-management.md](../business/user-management.md) - フォロー関連
 
 ## 概要
 ユーザーがお気に入りのインフルエンサーをフォローし、フォロー中のインフルエンサーのTalk枠を優先的に表示する機能。

@@ -84,12 +84,47 @@ router.post('/create-room', async (req: Request, res: Response) => {
       minutesUntilStart: minutesUntilStart.toFixed(2),
     });
 
-    // 待機室にはいつでも入室可能（15分制限を削除）
+    // 5. インフルエンサーの15分前チェック（CallPage入室時）
+    if (isInfluencer && minutesUntilStart > 15) {
+      console.warn('⚠️ インフルエンサーは15分前から入室可能:', {
+        minutesUntilStart: minutesUntilStart.toFixed(2),
+      });
+      return res.status(400).json({
+        error: 'インフルエンサーは通話開始時刻の15分前から入室できます',
+      });
+    }
+
+    // 6. CallPage入室時刻を記録（既に入室済みの場合は更新しない）
+    const currentTime = new Date().toISOString();
+    const updateWaitingRoomData: any = {};
+    
+    if (isInfluencer && !purchasedSlot.influencer_entered_waiting_room_at) {
+      updateWaitingRoomData.influencer_entered_waiting_room_at = currentTime;
+      console.log('🔵 インフルエンサーがCallPageに入室:', currentTime);
+    } else if (isFan && !purchasedSlot.fan_entered_waiting_room_at) {
+      updateWaitingRoomData.fan_entered_waiting_room_at = currentTime;
+      console.log('🔵 ファンがCallPageに入室:', currentTime);
+    }
+
+    // CallPage入室時刻を記録（既に入室済みの場合はスキップ）
+    if (Object.keys(updateWaitingRoomData).length > 0) {
+      const { error: waitingRoomUpdateError } = await supabase
+        .from('purchased_slots')
+        .update(updateWaitingRoomData)
+        .eq('id', purchasedSlotId);
+
+      if (waitingRoomUpdateError) {
+        console.error('❌ CallPage入室時刻記録エラー:', waitingRoomUpdateError);
+        // エラーでも続行（ルーム作成は可能）
+      } else {
+        console.log('✅ CallPage入室時刻を記録:', updateWaitingRoomData);
+      }
+    }
 
     let roomUrl = '';
     let roomName = purchasedSlot.video_call_room_id;
 
-    // 5. ルームが未作成の場合は作成（待機室への入室）
+    // 7. ルームが未作成の場合は作成（待機室への入室）
     if (!roomName) {
       console.log('🔵 新規ルーム作成開始（待機室）');
       try {
@@ -134,7 +169,7 @@ router.post('/create-room', async (req: Request, res: Response) => {
       console.log('✅ 既存のルームを使用（待機室に入室）:', roomName);
     }
 
-    // 6. ミーティングトークンを生成
+    // 8. ミーティングトークンを生成
     const { data: userData } = await supabase
       .from('users')
       .select('display_name')
@@ -144,7 +179,7 @@ router.post('/create-room', async (req: Request, res: Response) => {
     const userName = userData?.display_name || 'ゲスト';
     const { token } = await generateMeetingToken(roomName, userId, userName, isInfluencer);
 
-    // 7. レスポンス
+    // 9. レスポンス
     const timeUntilStart = Math.max(0, Math.floor(minutesUntilStart * 60));
 
     res.json({
@@ -182,10 +217,15 @@ router.post('/join-room', async (req: Request, res: Response) => {
 
     console.log('🔵 通話ルーム参加:', { purchasedSlotId, userId });
 
-    // 1. purchased_slotsを取得
+    // 1. purchased_slotsとcall_slotsを取得
     const { data: purchasedSlot, error: fetchError } = await supabase
       .from('purchased_slots')
-      .select('*')
+      .select(`
+        *,
+        call_slots (
+          scheduled_start_time
+        )
+      `)
       .eq('id', purchasedSlotId)
       .single();
 
@@ -206,7 +246,49 @@ router.post('/join-room', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'ルームがまだ作成されていません' });
     }
 
-    // 4. 参加日時を記録（実際の通話開始時）
+    // 4. call_slotsの取得と時刻計算
+    const callSlot = Array.isArray(purchasedSlot.call_slots)
+      ? purchasedSlot.call_slots[0]
+      : purchasedSlot.call_slots;
+
+    if (!callSlot) {
+      console.error('❌ call_slotsが見つかりません');
+      return res.status(400).json({ error: 'Talk枠情報が見つかりません' });
+    }
+
+    const scheduledTime = new Date(callSlot.scheduled_start_time);
+    const now = new Date();
+    const minutesUntilStart = (scheduledTime.getTime() - now.getTime()) / 60000;
+
+    console.log('🔵 時刻確認:', {
+      scheduled_start_time: callSlot.scheduled_start_time,
+      now: now.toISOString(),
+      minutesUntilStart: minutesUntilStart.toFixed(2),
+      isInfluencer,
+      isFan,
+    });
+
+    // 5. インフルエンサーの15分前チェック（Daily.co接続時）
+    if (isInfluencer && minutesUntilStart > 15) {
+      console.warn('⚠️ インフルエンサーは15分前から接続可能:', {
+        minutesUntilStart: minutesUntilStart.toFixed(2),
+      });
+      return res.status(400).json({
+        error: 'インフルエンサーは通話開始時刻の15分前から接続できます',
+      });
+    }
+
+    // 6. ファンの開始時刻チェック（Daily.co接続時）
+    if (isFan && minutesUntilStart > 0) {
+      console.warn('⚠️ ファンは開始時刻から接続可能:', {
+        minutesUntilStart: minutesUntilStart.toFixed(2),
+      });
+      return res.status(400).json({
+        error: 'ファンは通話開始時刻から接続できます',
+      });
+    }
+
+    // 7. 参加日時を記録（実際の通話開始時）
     const updateData: any = {};
     const currentTime = new Date().toISOString();
 
@@ -218,12 +300,12 @@ router.post('/join-room', async (req: Request, res: Response) => {
       console.log('🔵 ファンが通話に参加:', currentTime);
     }
 
-    // 5. call_statusを更新
+    // 8. call_statusを更新
     if (purchasedSlot.call_status === 'pending' || purchasedSlot.call_status === 'ready') {
       updateData.call_status = 'in_progress';
     }
 
-    // 6. call_started_atを記録（初回のみ）
+    // 9. call_started_atを記録（初回のみ）
     if (!purchasedSlot.call_started_at) {
       updateData.call_started_at = currentTime;
       console.log('🔵 通話開始時刻を記録:', currentTime);
@@ -241,7 +323,7 @@ router.post('/join-room', async (req: Request, res: Response) => {
 
     console.log('✅ 参加情報を記録:', updateData);
 
-    // 7. ミーティングトークンを生成
+    // 10. ミーティングトークンを生成
     const { data: userData } = await supabase
       .from('users')
       .select('display_name')
@@ -402,11 +484,25 @@ router.get('/status/:purchasedSlotId', async (req: Request, res: Response) => {
     // 開始時刻になったら通話開始可能（0秒以下）
     const canJoin = timeUntilStartSeconds <= 0;
 
+    // 表示用ステータスを取得する関数
+    const getDisplayStatus = (enteredWaitingRoomAt: string | null, joinedAt: string | null): string => {
+      if (joinedAt) return '通話中';
+      if (enteredWaitingRoomAt) return '待機中';
+      return '未入室';
+    };
+
+    const influencerEnteredWaitingRoom = !!purchasedSlot.influencer_entered_waiting_room_at;
+    const fanEnteredWaitingRoom = !!purchasedSlot.fan_entered_waiting_room_at;
+    const influencerJoined = !!purchasedSlot.influencer_joined_at;
+    const fanJoined = !!purchasedSlot.fan_joined_at;
+
     console.log('🔵 ステータス情報:', {
       timeUntilStartSeconds,
       canJoin,
-      influencer_joined: !!purchasedSlot.influencer_joined_at,
-      fan_joined: !!purchasedSlot.fan_joined_at,
+      influencer_entered_waiting_room: influencerEnteredWaitingRoom,
+      influencer_joined: influencerJoined,
+      fan_entered_waiting_room: fanEnteredWaitingRoom,
+      fan_joined: fanJoined,
     });
 
     res.json({
@@ -415,9 +511,25 @@ router.get('/status/:purchasedSlotId', async (req: Request, res: Response) => {
       duration_minutes: callSlot.duration_minutes,
       time_until_start_seconds: Math.max(0, timeUntilStartSeconds),
       participants: {
-        influencer_joined: !!purchasedSlot.influencer_joined_at,
-        fan_joined: !!purchasedSlot.fan_joined_at,
+        influencer_entered_waiting_room: influencerEnteredWaitingRoom,
+        influencer_joined: influencerJoined,
+        fan_entered_waiting_room: fanEnteredWaitingRoom,
+        fan_joined: fanJoined,
       },
+      // 追加: タイムスタンプ情報
+      influencer_entered_waiting_room_at: purchasedSlot.influencer_entered_waiting_room_at || null,
+      fan_entered_waiting_room_at: purchasedSlot.fan_entered_waiting_room_at || null,
+      influencer_joined_at: purchasedSlot.influencer_joined_at || null,
+      fan_joined_at: purchasedSlot.fan_joined_at || null,
+      // 追加: 表示用ステータス
+      influencer_status: getDisplayStatus(
+        purchasedSlot.influencer_entered_waiting_room_at,
+        purchasedSlot.influencer_joined_at
+      ),
+      fan_status: getDisplayStatus(
+        purchasedSlot.fan_entered_waiting_room_at,
+        purchasedSlot.fan_joined_at
+      ),
       can_join: canJoin,
       room_created: !!purchasedSlot.video_call_room_id,
     });

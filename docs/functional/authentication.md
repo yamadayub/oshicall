@@ -1,4 +1,8 @@
-# ユーザー認証機能 要件定義
+# ユーザー認証機能
+
+## 対応する業務仕様
+
+- [/docs/business/user-management.md](../business/user-management.md) - 認証関連
 
 ## 概要
 Supabase Authを使用したユーザー認証システム。メール認証とGoogle OAuth認証をサポート。

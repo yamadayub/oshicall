@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Video, Mic, Clock, Users, AlertCircle, CheckCircle } from 'lucide-react';
 import { createCallRoom, getCallStatus, type CreateRoomResponse } from '../../api/calls';
 
@@ -29,6 +29,7 @@ export default function CallWaitingRoom({
   const [micPermission, setMicPermission] = useState<boolean>(false);
   const [timeUntilStart, setTimeUntilStart] = useState<number>(0);
   const [canJoin, setCanJoin] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
 
   // ルーム作成
   useEffect(() => {
@@ -100,6 +101,65 @@ export default function CallWaitingRoom({
     return () => clearInterval(timer);
   }, []);
 
+  // インフルエンサー/ファンの通話開始可能判定
+  const canStartCall = useMemo(() => {
+    if (!status) return false;
+    
+    const timeUntilStartSeconds = status.time_until_start_seconds || timeUntilStart;
+    
+    if (userType === 'influencer') {
+      // インフルエンサー: 15分前（900秒前）から開始可能
+      return timeUntilStartSeconds <= 15 * 60;
+    } else {
+      // ファン: 開始時刻から（自動接続のため、ボタンは表示しない）
+      return timeUntilStartSeconds <= 0;
+    }
+  }, [status, userType, timeUntilStart]);
+
+  // ファンの自動接続（BR-010対応）
+  useEffect(() => {
+    if (!status || userType !== 'fan') return;
+    if (isJoining) return; // 既に接続処理中
+    if (!roomData) return; // ルームデータが準備できていない
+    
+    const timeUntilStartSeconds = status.time_until_start_seconds || timeUntilStart;
+    
+    // 開始時刻を過ぎたら自動接続
+    if (timeUntilStartSeconds <= 0 && !status.participants?.fan_joined) {
+      console.log('🔵 ファン: 開始時刻になったため自動接続を開始');
+      setIsJoining(true);
+      
+      const autoJoin = async () => {
+        try {
+          // 通話開始時に参加情報を記録
+          const { getBackendUrl } = await import('../../lib/backend');
+          const backendUrl = getBackendUrl();
+          const response = await fetch(`${backendUrl}/api/calls/join-room`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ purchasedSlotId, userId }),
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || '参加記録に失敗しました');
+          }
+
+          console.log('✅ 通話参加を記録しました（自動接続）');
+
+          // Daily.coルームに参加
+          onJoinCall(roomData.roomUrl, roomData.token);
+        } catch (err: any) {
+          console.error('❌ 自動接続エラー:', err);
+          setError(err.message || '自動接続に失敗しました');
+          setIsJoining(false);
+        }
+      };
+      
+      autoJoin();
+    }
+  }, [status, userType, timeUntilStart, isJoining, roomData, purchasedSlotId, userId, onJoinCall]);
+
   const formatCountdown = (seconds: number) => {
     if (seconds <= 0) return '通話時間になりました';
 
@@ -118,8 +178,11 @@ export default function CallWaitingRoom({
 
   const handleJoinClick = async () => {
     if (!roomData) return;
+    if (isJoining) return; // 既に接続処理中
 
     try {
+      setIsJoining(true);
+      
       // 通話開始時に参加情報を記録
       const { getBackendUrl } = await import('../../lib/backend');
       const backendUrl = getBackendUrl();
@@ -141,6 +204,7 @@ export default function CallWaitingRoom({
     } catch (err: any) {
       console.error('❌ 参加記録エラー:', err);
       setError(err.message || '参加処理に失敗しました');
+      setIsJoining(false);
     }
   };
 
@@ -256,43 +320,115 @@ export default function CallWaitingRoom({
             <h3 className="text-lg font-bold text-gray-900 mb-4">参加状況</h3>
 
             <div className="grid grid-cols-2 gap-4">
-              <div className={`p-4 rounded-lg border-2 ${status.participants.influencer_joined ? 'border-green-500 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
+              {/* インフルエンサーの状態 */}
+              <div className={`p-4 rounded-lg border-2 ${
+                status.influencer_status === '通話中' ? 'border-green-500 bg-green-50' :
+                status.influencer_status === '待機中' ? 'border-blue-500 bg-blue-50' :
+                'border-gray-200 bg-gray-50'
+              }`}>
                 <p className="text-sm text-gray-600 mb-1">インフルエンサー</p>
                 <p className="font-bold text-gray-900">
-                  {status.participants.influencer_joined ? '✅ 参加済み' : '⏳ 待機中'}
+                  {status.influencer_status === '通話中' && '✅ 通話中'}
+                  {status.influencer_status === '待機中' && '⏳ 待機中'}
+                  {status.influencer_status === '未入室' && '⭕ 未入室'}
                 </p>
+                {userType === 'influencer' && (
+                  <p className="text-xs text-gray-500 mt-1">（あなた）</p>
+                )}
               </div>
 
-              <div className={`p-4 rounded-lg border-2 ${status.participants.fan_joined ? 'border-green-500 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
+              {/* ファンの状態 */}
+              <div className={`p-4 rounded-lg border-2 ${
+                status.fan_status === '通話中' ? 'border-green-500 bg-green-50' :
+                status.fan_status === '待機中' ? 'border-blue-500 bg-blue-50' :
+                'border-gray-200 bg-gray-50'
+              }`}>
                 <p className="text-sm text-gray-600 mb-1">ファン</p>
                 <p className="font-bold text-gray-900">
-                  {status.participants.fan_joined ? '✅ 参加済み' : '⏳ 待機中'}
+                  {status.fan_status === '通話中' && '✅ 通話中'}
+                  {status.fan_status === '待機中' && '⏳ 待機中'}
+                  {status.fan_status === '未入室' && '⭕ 未入室'}
                 </p>
+                {userType === 'fan' && (
+                  <p className="text-xs text-gray-500 mt-1">（あなた）</p>
+                )}
               </div>
             </div>
           </div>
         )}
 
         {/* 入室ボタン */}
-        <button
-          onClick={handleJoinClick}
-          disabled={timeUntilStart > 0 || !cameraPermission || !micPermission}
-          className="w-full py-6 md:py-6 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-2xl font-bold text-lg md:text-xl hover:from-pink-600 hover:to-purple-700 transition-all duration-200 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 disabled:transform-none flex flex-col md:flex-row items-center justify-center gap-2 whitespace-normal h-auto min-h-[80px]"
-        >
-          {timeUntilStart <= 0 ? (
-            <span className="flex items-center gap-2">🎥 通話を開始する</span>
-          ) : (
-            <span className="text-center">⏰ {formatCountdown(timeUntilStart)}後に開始できます</span>
-          )}
-        </button>
-
-        {!canJoin && timeUntilStart > 0 && (
-          <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <p className="text-sm text-blue-800 text-center">
-              💡 待機室に入室しています。相手の参加状況を確認できます。<br />
-              予定時刻になると通話を開始できます。
-            </p>
-          </div>
+        {userType === 'influencer' ? (
+          // インフルエンサー: 15分前からボタンが有効
+          <>
+            <button
+              onClick={handleJoinClick}
+              disabled={!canStartCall || !cameraPermission || !micPermission || isJoining}
+              className="w-full py-6 md:py-6 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-2xl font-bold text-lg md:text-xl hover:from-pink-600 hover:to-purple-700 transition-all duration-200 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 disabled:transform-none flex flex-col md:flex-row items-center justify-center gap-2 whitespace-normal h-auto min-h-[80px]"
+            >
+              {isJoining ? (
+                <span className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  接続中...
+                </span>
+              ) : canStartCall ? (
+                <span className="flex items-center gap-2">🎥 通話を開始する</span>
+              ) : (
+                <span className="text-center">⏰ {formatCountdown(timeUntilStart)}後に開始できます</span>
+              )}
+            </button>
+            {!canStartCall && timeUntilStart > 0 && (
+              <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-800 text-center">
+                  💡 待機室に入室しています。相手の参加状況を確認できます。<br />
+                  通話開始時刻の15分前から通話を開始できます。
+                </p>
+              </div>
+            )}
+          </>
+        ) : (
+          // ファン: 開始時刻前は自動接続メッセージ、開始時刻後は接続済みまたは接続中
+          <>
+            {timeUntilStart > 0 ? (
+              <div className="w-full py-6 md:py-6 py-4 bg-gray-100 text-gray-600 rounded-2xl font-bold text-lg md:text-xl flex flex-col md:flex-row items-center justify-center gap-2 whitespace-normal h-auto min-h-[80px]">
+                <span className="text-center">⏰ 開始時刻になると自動的に接続されます</span>
+              </div>
+            ) : isJoining ? (
+              <div className="w-full py-6 md:py-6 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-2xl font-bold text-lg md:text-xl flex flex-col md:flex-row items-center justify-center gap-2 whitespace-normal h-auto min-h-[80px]">
+                <span className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  自動接続中...
+                </span>
+              </div>
+            ) : status?.participants?.fan_joined ? (
+              <div className="w-full py-6 md:py-6 py-4 bg-green-500 text-white rounded-2xl font-bold text-lg md:text-xl flex flex-col md:flex-row items-center justify-center gap-2 whitespace-normal h-auto min-h-[80px]">
+                <span className="flex items-center gap-2">✅ 接続済み</span>
+              </div>
+            ) : (
+              <button
+                onClick={handleJoinClick}
+                disabled={!cameraPermission || !micPermission || isJoining}
+                className="w-full py-6 md:py-6 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-2xl font-bold text-lg md:text-xl hover:from-pink-600 hover:to-purple-700 transition-all duration-200 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 disabled:transform-none flex flex-col md:flex-row items-center justify-center gap-2 whitespace-normal h-auto min-h-[80px]"
+              >
+                {isJoining ? (
+                  <span className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                    接続中...
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2">🎥 通話を開始する</span>
+                )}
+              </button>
+            )}
+            {timeUntilStart > 0 && (
+              <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-800 text-center">
+                  💡 待機室に入室しています。相手の参加状況を確認できます。<br />
+                  開始時刻になると自動的に通話が開始されます。
+                </p>
+              </div>
+            )}
+          </>
         )}
 
         {/* 注意事項 */}

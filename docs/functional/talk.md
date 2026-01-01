@@ -1,4 +1,8 @@
-# Talk（通話）機能 要件定義
+# Talk（通話）機能
+
+## 対応する業務仕様
+
+- [/docs/business/video-call.md](../business/video-call.md)
 
 ## 概要
 インフルエンサーとファンの1対1ビデオ通話を実現する機能。
