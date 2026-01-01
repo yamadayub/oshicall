@@ -33,3 +33,10 @@ scripts/setup-local-env.js
 # Cursor MCP設定
 # テンプレートファイル（.staging, .dev）はGit管理、実際の設定ファイル（mcp.json）は環境ごとに異なる可能性があるため
 # .cursor/mcp.json はGit管理に含める（デフォルトはstaging環境）
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/

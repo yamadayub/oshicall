@@ -409,6 +409,20 @@ app.post('/api/buy-now', async (req: Request, res: Response) => {
 
     console.log('✅ purchased_slots記録成功:', purchasedSlot.id);
 
+    // call_slots.statusを'live'に更新
+    const { error: statusUpdateError } = await supabase
+      .from('call_slots')
+      .update({ status: 'live' })
+      .eq('id', auction.call_slot_id)
+      .is('deleted_at', null);
+
+    if (statusUpdateError) {
+      console.error('❌ call_slots.status更新エラー:', statusUpdateError);
+      // エラーでも続行（purchased_slotsの作成は成功している）
+    } else {
+      console.log('✅ call_slots.status更新成功 → live');
+    }
+
     // 6. Edge Functionを呼び出してオークションを終了
     console.log('🔵 オークション終了Edge Functionを呼び出し');
     const edgeFunctionUrl = `${process.env.SUPABASE_URL}/functions/v1/finalize-buy-now-auction`;
@@ -1270,6 +1284,19 @@ app.post('/api/auctions/finalize-ended', async (req: Request, res: Response) => 
         }
 
         console.log(`✅ purchased_slots記録成功: ${purchasedSlot.id}（決済は保留）`);
+
+        // call_slots.statusを'live'に更新
+        const { error: statusUpdateError } = await supabase
+          .from('call_slots')
+          .update({ status: 'live' })
+          .eq('id', auction.call_slot_id);
+
+        if (statusUpdateError) {
+          console.error('❌ call_slots.status更新エラー:', statusUpdateError);
+          // エラーでも続行（purchased_slotsの作成は成功している）
+        } else {
+          console.log(`✅ call_slots.status更新成功: ${auction.call_slot_id} → 'live'`);
+        }
 
         // 5. オークションを終了状態に更新
         await supabase

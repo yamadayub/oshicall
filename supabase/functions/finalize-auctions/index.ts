@@ -538,6 +538,19 @@ Deno.serve(async (req) => {
 
             console.log(`✅ purchased_slots記録成功: ${purchasedSlot.id}（決済はTalk完了後に実施）`);
 
+            // call_slots.statusを'live'に更新
+            const { error: statusUpdateError } = await supabase
+              .from('call_slots')
+              .update({ status: 'live' })
+              .eq('id', auction.call_slot_id);
+
+            if (statusUpdateError) {
+              console.error('❌ call_slots.status更新エラー:', statusUpdateError);
+              // エラーでも続行（purchased_slotsの作成は成功している）
+            } else {
+              console.log(`✅ call_slots.status更新成功: ${auction.call_slot_id} → 'live'`);
+            }
+
             // 7. 落札者にメール通知を送信
             try {
               // ユーザー情報を取得（auth_user_id経由でemailを取得）

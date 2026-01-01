@@ -334,6 +334,19 @@ router.post('/end-call', async (req: Request, res: Response) => {
 
     console.log('✅ 通話終了情報を記録:', { actualDuration });
 
+    // call_slots.statusを'completed'に更新
+    const { error: statusUpdateError } = await supabase
+      .from('call_slots')
+      .update({ status: 'completed' })
+      .eq('id', purchasedSlot.call_slot_id);
+
+    if (statusUpdateError) {
+      console.error('❌ call_slots.status更新エラー:', statusUpdateError);
+      // エラーでも続行（purchased_slotsの更新は成功している）
+    } else {
+      console.log('✅ call_slots.status更新成功 → completed');
+    }
+
     // 4. Daily.coルームを削除
     if (purchasedSlot.video_call_room_id) {
       await deleteDailyRoom(purchasedSlot.video_call_room_id);
