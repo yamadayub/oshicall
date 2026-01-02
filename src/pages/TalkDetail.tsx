@@ -489,8 +489,17 @@ export default function TalkDetail() {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || '与信確保に失敗しました');
+        const errorData = await response.json();
+        
+        // カード期限切れやカード更新が必要な場合
+        if (errorData.errorCode === 'card_expired' || errorData.requiresAction === 'update_payment_method') {
+          // カード更新モーダルを表示
+          setPendingBidAmount(bidAmount);
+          setShowCardModal(true);
+          throw new Error(errorData.error || 'カード情報を更新してください');
+        }
+        
+        throw new Error(errorData.error || '与信確保に失敗しました');
       }
 
       const { paymentIntentId } = await response.json();
@@ -646,6 +655,11 @@ export default function TalkDetail() {
     try {
       await processBid(newBidAmount);
     } catch (error: any) {
+      // カード更新が必要な場合は既にモーダルが表示されているので、エラーメッセージのみ表示
+      if (error.message?.includes('カード情報を更新')) {
+        // モーダルが表示されているので、追加のアラートは不要
+        return;
+      }
       alert(`入札に失敗しました: ${error.message}`);
     }
   };
@@ -678,6 +692,11 @@ export default function TalkDetail() {
       setShowCustomInput(false);
       setCustomAmount('');
     } catch (error: any) {
+      // カード更新が必要な場合は既にモーダルが表示されているので、エラーメッセージのみ表示
+      if (error.message?.includes('カード情報を更新')) {
+        // モーダルが表示されているので、追加のアラートは不要
+        return;
+      }
       alert(`入札に失敗しました: ${error.message}`);
     }
   };
@@ -745,6 +764,11 @@ export default function TalkDetail() {
         await processBid(pendingBidAmount);
         setPendingBidAmount(0);
       } catch (error: any) {
+        // カード更新が必要な場合は既にモーダルが表示されているので、エラーメッセージのみ表示
+        if (error.message?.includes('カード情報を更新')) {
+          // モーダルが表示されているので、追加のアラートは不要
+          return;
+        }
         alert(`入札に失敗しました: ${error.message}`);
       }
     }

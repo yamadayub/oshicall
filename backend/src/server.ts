@@ -276,19 +276,52 @@ app.post('/api/stripe/authorize-payment', async (req: Request, res: Response) =>
       throw new Error('顧客が見つかりません');
     }
 
-    const defaultPaymentMethod = (customer as Stripe.Customer).invoice_settings?.default_payment_method;
+    const defaultPaymentMethodId = (customer as Stripe.Customer).invoice_settings?.default_payment_method;
 
-    if (!defaultPaymentMethod) {
+    if (!defaultPaymentMethodId) {
       throw new Error('支払い方法が登録されていません');
     }
 
+    // 3.5. PaymentMethodの詳細を取得してカード情報を確認
+    const paymentMethod = await stripe.paymentMethods.retrieve(defaultPaymentMethodId as string);
+    
+    if (paymentMethod.type !== 'card') {
+      throw new Error('カード以外の支払い方法は使用できません');
+    }
+
+    // カードの有効期限をチェック
+    const card = paymentMethod.card;
+    if (card) {
+      const currentYear = new Date().getFullYear();
+      const currentMonth = new Date().getMonth() + 1; // 0-11 → 1-12
+      const cardYear = card.exp_year || 0;
+      const cardMonth = card.exp_month || 0;
+
+      console.log('🔵 カード有効期限チェック:', {
+        cardYear,
+        cardMonth,
+        currentYear,
+        currentMonth,
+      });
+
+      // カードが期限切れかチェック
+      if (cardYear < currentYear || (cardYear === currentYear && cardMonth < currentMonth)) {
+        console.error('❌ カードが期限切れ:', { cardYear, cardMonth, currentYear, currentMonth });
+        return res.status(400).json({
+          error: '登録されているカードが期限切れです。カード情報を更新してください。',
+          errorCode: 'card_expired',
+          requiresAction: 'update_payment_method',
+        });
+      }
+    }
+
     // 4. PaymentIntentを作成（手動キャプチャ）
-    console.log('🔵 Payment Intent作成:', { amount, currency: 'jpy' });
+    console.log('🔵 Payment Intent作成:', { amount, currency: 'jpy', paymentMethodId: defaultPaymentMethodId });
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(amount), // 円単位
       currency: 'jpy',
       customer: customerId,
-      payment_method: defaultPaymentMethod as string,
+      payment_method: defaultPaymentMethodId as string,
       capture_method: 'manual', // 手動キャプチャ（与信のみ）
       confirm: true, // 即座に確認
       off_session: true, // オフセッション決済
@@ -310,7 +343,55 @@ app.post('/api/stripe/authorize-payment', async (req: Request, res: Response) =>
     });
   } catch (error: any) {
     console.error('❌ 与信確保エラー:', error);
-    res.status(500).json({ error: error.message });
+    
+    // Stripeのエラーコードに基づいて適切なエラーメッセージを返す
+    if (error.type === 'StripeCardError') {
+      const stripeError = error as Stripe.errors.StripeCardError;
+      
+      // カード期限切れエラー
+      if (stripeError.code === 'expired_card' || stripeError.message?.includes('expired')) {
+        return res.status(400).json({
+          error: '登録されているカードが期限切れです。カード情報を更新してください。',
+          errorCode: 'card_expired',
+          requiresAction: 'update_payment_method',
+        });
+      }
+      
+      // その他のカードエラー
+      if (stripeError.code === 'card_declined') {
+        return res.status(400).json({
+          error: 'カードが拒否されました。カード情報を確認するか、別のカードをお試しください。',
+          errorCode: 'card_declined',
+          requiresAction: 'update_payment_method',
+        });
+      }
+      
+      if (stripeError.code === 'insufficient_funds') {
+        return res.status(400).json({
+          error: 'カードの残高が不足しています。別のカードをお試しください。',
+          errorCode: 'insufficient_funds',
+          requiresAction: 'update_payment_method',
+        });
+      }
+      
+      // その他のカードエラー（汎用的なメッセージ）
+      return res.status(400).json({
+        error: `カードエラー: ${stripeError.message || 'カード情報を確認してください'}`,
+        errorCode: stripeError.code || 'card_error',
+        requiresAction: 'update_payment_method',
+      });
+    }
+    
+    // その他のStripeエラー
+    if (error.type && error.type.startsWith('Stripe')) {
+      return res.status(400).json({
+        error: error.message || '決済処理でエラーが発生しました',
+        errorCode: error.code || 'stripe_error',
+      });
+    }
+    
+    // 一般的なエラー
+    res.status(500).json({ error: error.message || '与信確保に失敗しました' });
   }
 });
 
@@ -1168,29 +1249,43 @@ app.put('/api/call-slots/:callSlotId', async (req: Request, res: Response) => {
 
     console.log('✅ Talk枠更新成功:', updatedCallSlot.id);
 
-    // 7. オークション情報を更新（auction_idが存在し、auction_end_timeが指定されている場合）
-    if (auctionId && auction_end_time) {
+    // 7. オークション情報を更新（auction_idが存在する場合）
+    if (auctionId) {
       const auctionUpdateData: any = {
-        auction_end_time: auction_end_time,
-        end_time: auction_end_time,
         updated_at: new Date().toISOString()
       };
 
-      const { data: updatedAuction, error: auctionUpdateError } = await supabase
-        .from('auctions')
-        .update(auctionUpdateData)
-        .eq('id', auctionId)
-        .select()
-        .single();
-
-      if (auctionUpdateError) {
-        console.error('❌ オークション更新エラー:', auctionUpdateError);
-        // Talk枠の更新は成功しているが、オークションの更新に失敗
-        // ロールバックは難しいので、エラーを返す
-        throw new Error(`Talk枠は更新されましたが、オークション情報の更新に失敗しました: ${auctionUpdateError.message}`);
+      // auction_end_timeが指定されている場合は更新
+      if (auction_end_time !== undefined && auction_end_time !== null && auction_end_time !== '') {
+        auctionUpdateData.auction_end_time = auction_end_time;
+        auctionUpdateData.end_time = auction_end_time;
+        console.log('🔵 オークション終了時間を更新:', auction_end_time);
       }
 
-      console.log('✅ オークション更新成功:', updatedAuction.id);
+      // オークション情報を更新（auction_end_timeが指定されていない場合でもupdated_atは更新）
+      if (Object.keys(auctionUpdateData).length > 1 || auction_end_time !== undefined) {
+        const { data: updatedAuction, error: auctionUpdateError } = await supabase
+          .from('auctions')
+          .update(auctionUpdateData)
+          .eq('id', auctionId)
+          .select()
+          .single();
+
+        if (auctionUpdateError) {
+          console.error('❌ オークション更新エラー:', auctionUpdateError);
+          // Talk枠の更新は成功しているが、オークションの更新に失敗
+          // ロールバックは難しいので、エラーを返す
+          throw new Error(`Talk枠は更新されましたが、オークション情報の更新に失敗しました: ${auctionUpdateError.message}`);
+        }
+
+        if (updatedAuction) {
+          console.log('✅ オークション更新成功:', updatedAuction.id);
+        }
+      } else {
+        console.log('⚠️ オークション終了時間が指定されていないため、オークション情報は更新しません');
+      }
+    } else {
+      console.log('⚠️ オークションIDが見つかりません（オークション未作成の可能性）');
     }
 
     res.json({

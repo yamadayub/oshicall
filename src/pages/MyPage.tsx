@@ -562,12 +562,15 @@ export default function MyPage() {
 
       // datetime-local形式をUTC形式に変換（オークション終了時間）
       let auctionEndTimeUTC: string | undefined;
-      if (editForm.auction_end_time) {
+      if (editForm.auction_end_time && editForm.auction_end_time.trim() !== '') {
         auctionEndTimeUTC = editForm.auction_end_time;
         if (!auctionEndTimeUTC.includes('Z') && !auctionEndTimeUTC.includes('+')) {
           const localDate = new Date(auctionEndTimeUTC);
           auctionEndTimeUTC = localDate.toISOString();
         }
+        console.log('🔵 オークション終了時間を送信:', auctionEndTimeUTC);
+      } else {
+        console.log('⚠️ オークション終了時間が空のため、更新をスキップします');
       }
 
       // バックエンドAPIを呼び出してTalk枠とオークション情報を一括更新
