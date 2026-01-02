@@ -84,17 +84,9 @@ router.post('/create-room', async (req: Request, res: Response) => {
       minutesUntilStart: minutesUntilStart.toFixed(2),
     });
 
-    // 5. インフルエンサーの15分前チェック（CallPage入室時）
-    if (isInfluencer && minutesUntilStart > 15) {
-      console.warn('⚠️ インフルエンサーは15分前から入室可能:', {
-        minutesUntilStart: minutesUntilStart.toFixed(2),
-      });
-      return res.status(400).json({
-        error: 'インフルエンサーは通話開始時刻の15分前から入室できます',
-      });
-    }
-
-    // 6. CallPage入室時刻を記録（既に入室済みの場合は更新しない）
+    // 5. CallPage入室時刻を記録（既に入室済みの場合は更新しない）
+    // 注意: CallPage入室はオークション終了後いつでも可能（制限なし）
+    // Daily.co接続は /api/calls/join-room で15分前チェックを実施
     const currentTime = new Date().toISOString();
     const updateWaitingRoomData: any = {};
     

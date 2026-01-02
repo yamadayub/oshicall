@@ -101,17 +101,19 @@ export default function CallWaitingRoom({
     return () => clearInterval(timer);
   }, []);
 
-  // インフルエンサー/ファンの通話開始可能判定
+  // インフルエンサー/ファンのDaily.co接続可能判定
+  // 注意: CallPage入室はいつでも可能（制限なし）
+  // この判定はDaily.co接続ボタンの有効化にのみ使用
   const canStartCall = useMemo(() => {
     if (!status) return false;
     
     const timeUntilStartSeconds = status.time_until_start_seconds || timeUntilStart;
     
     if (userType === 'influencer') {
-      // インフルエンサー: 15分前（900秒前）から開始可能
+      // インフルエンサー: Daily.co接続は15分前（900秒前）から開始可能
       return timeUntilStartSeconds <= 15 * 60;
     } else {
-      // ファン: 開始時刻から（自動接続のため、ボタンは表示しない）
+      // ファン: Daily.co接続は開始時刻から（自動接続のため、ボタンは表示しない）
       return timeUntilStartSeconds <= 0;
     }
   }, [status, userType, timeUntilStart]);
@@ -381,7 +383,7 @@ export default function CallWaitingRoom({
               <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-sm text-blue-800 text-center">
                   💡 待機室に入室しています。相手の参加状況を確認できます。<br />
-                  通話開始時刻の15分前から通話を開始できます。
+                  通話開始時刻の15分前からDaily.coに接続できます。
                 </p>
               </div>
             )}

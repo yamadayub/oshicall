@@ -27,13 +27,13 @@
 ### FR-002: インフルエンサーの早期入室
 - **対応BR**: BR-009
 - **説明**: 
-  - 現状: Daily.coルームの `nbf` は15分前に設定されているが、`/api/calls/create-room` で時刻チェックが行われていない
-  - 現状: `backend/src/routes/calls.ts` の87行目に「待機室にはいつでも入室可能（15分制限を削除）」というコメントがある
-  - 問題: インフルエンサーとファンの入室タイミングの違いが実装されていない
+  - 現状: `/api/calls/create-room` でインフルエンサーの15分前チェックが実装されている
+  - 問題: インフルエンサーはオークション終了後すぐにCallPageに入室できない
+  - 解決策: CallPage入室の制限を削除し、オークション終了後いつでも入室可能にする。Daily.co接続は15分前から可能なまま維持
 - **変更内容**:
-  - `/api/calls/create-room` でインフルエンサーの場合、15分前チェックを追加
-  - `/api/calls/join-room` でインフルエンサーの場合、15分前チェックを追加（Daily.co接続時）
-  - `CallWaitingRoom.tsx` でインフルエンサーの場合、15分前から「通話を開始する」ボタンを有効化
+  - `/api/calls/create-room` でインフルエンサーの15分前チェックを削除（CallPage入室はいつでも可能）
+  - `/api/calls/join-room` でインフルエンサーの場合、15分前チェックを維持（Daily.co接続時）
+  - `CallWaitingRoom.tsx` でインフルエンサーの場合、CallPage入室の制限を削除、Daily.co接続は15分前から可能
 
 ### FR-003: ファンの自動接続
 - **対応BR**: BR-010
@@ -92,7 +92,7 @@ fan_entered_waiting_room_at TIMESTAMP WITH TIME ZONE         -- CallPageに入�
 
 **処理フロー**:
 1. ユーザー確認（インフルエンサー/ファン判定）
-2. **インフルエンサーの場合**: 15分前チェック（15分前未満の場合はエラー）
+2. **インフルエンサーの場合**: 制限なし（オークション終了後いつでも入室可能）
 3. **ファンの場合**: いつでも入室可能（制限なし）
 4. CallPage入室時刻を記録（`influencer_entered_waiting_room_at` または `fan_entered_waiting_room_at`）
 5. ルーム作成（既存ロジック）
@@ -211,11 +211,11 @@ useEffect(() => {
 
 **入室ボタンの有効化条件**:
 ```typescript
-// インフルエンサー: 15分前から有効
-// ファン: 開始時刻から有効
+// CallPage入室: インフルエンサー・ファンともにいつでも可能（制限なし）
+// Daily.co接続: インフルエンサーは15分前から、ファンは開始時刻から
 const canJoinDaily = userType === 'influencer' 
-  ? timeUntilStart <= 15 * 60  // 15分前
-  : timeUntilStart <= 0;        // 開始時刻
+  ? timeUntilStart <= 15 * 60  // 15分前（Daily.co接続のみ）
+  : timeUntilStart <= 0;        // 開始時刻（ファン）
 
 const isButtonDisabled = 
   !canJoinDaily || 
@@ -230,14 +230,15 @@ const isButtonDisabled =
 
 #### バックエンド
 - `backend/src/routes/calls.ts`
-  - `/api/calls/create-room`: CallPage入室時刻記録、インフルエンサー15分前チェック追加
-  - `/api/calls/join-room`: インフルエンサー15分前チェック、ファン開始時刻チェック追加
+  - `/api/calls/create-room`: CallPage入室時刻記録、インフルエンサーの15分前チェックを削除（CallPage入室はいつでも可能）
+  - `/api/calls/join-room`: インフルエンサー15分前チェック維持（Daily.co接続時）、ファン開始時刻チェック追加
   - `/api/calls/status/:purchasedSlotId`: CallPage入室状態を返すように変更
 
 #### フロントエンド
 - `src/components/calls/CallWaitingRoom.tsx`
   - 入室状態表示の改善
-  - インフルエンサーの15分前入室対応
+  - インフルエンサーのCallPage入室制限を削除（いつでも入室可能）
+  - インフルエンサーのDaily.co接続は15分前から可能（維持）
   - ファンの自動接続実装
 
 #### データベース
@@ -261,4 +262,5 @@ const isButtonDisabled =
 | 日付 | 変更内容 | 理由 |
 |------|----------|------|
 | 2025-01-XX | 初回作成 | Issue #1, #2対応のための機能仕様作成 |
+| 2026-01-02 | FR-002を更新 | インフルエンサーのCallPage入室をオークション終了後いつでも可能に変更 |
 
