@@ -75,6 +75,45 @@ git worktree remove ../oshicall-feat-new-function
 git branch -d feat/new-function
 ```
 
+### 6. GitHubへのPush（Routine化）
+実装完了後は、必ずGitHubにPushします。
+
+#### 手順
+1. **変更ファイルの確認**
+   ```bash
+   git status
+   ```
+
+2. **関連ファイルのみをステージング**
+   ```bash
+   # 主要な変更ファイルのみを追加
+   git add [変更したファイル]
+   ```
+
+3. **コミット**
+   ```bash
+   git commit -m "feat: [機能名] の実装
+
+   - 変更内容1
+   - 変更内容2
+   - ドキュメント更新"
+   ```
+
+4. **Push**
+   ```bash
+   git push origin main
+   ```
+
+#### コミットメッセージのフォーマット
+- `feat`: 新機能追加
+- `fix`: バグ修正
+- `docs`: ドキュメント更新
+- `refactor`: リファクタリング
+- `test`: テスト追加・修正
+- `chore`: その他の変更
+
+詳細は [/docs/ai_workflow/CODE_CHANGE_WORKFLOW.md](./CODE_CHANGE_WORKFLOW.md) の「フェーズ5: GitHubへのPush」を参照してください。
+
 ---
 
 ## 🛡️ 安全なDB変更フロー
