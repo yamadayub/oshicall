@@ -90,17 +90,13 @@ export async function shouldCaptureTalkPayment(
 
   console.log('🔵 イベント数:', events?.length || 0);
 
+  // ハイブリッド判定: イベントログがない場合は purchased_slots の情報で判定
   if (!events || events.length === 0) {
-    console.warn('⚠️ イベントログが存在しません');
-    return {
-      shouldCapture: false,
-      reason: 'no_events',
-      influencerParticipated: false,
-      completedProperly: false
-    };
+    console.warn('⚠️ イベントログが存在しないため、purchased_slots情報で判定します');
+    return shouldCaptureTalkPaymentFromPurchasedSlot(purchasedSlot, callSlot);
   }
 
-  // 2. インフルエンサーが参加したかチェック
+  // 2. インフルエンサーが参加したかチェック（イベントログベースの厳密な判定）
   const influencerJoined = events.some((e: any) =>
     (e.event_type === 'participant.joined') &&
     (e.user_id === purchasedSlot.influencer_user_id)
@@ -161,6 +157,106 @@ export async function shouldCaptureTalkPayment(
 
   // 5. すべての条件を満たした → 課金OK
   console.log('✅ 課金条件をすべて満たしました');
+  return {
+    shouldCapture: true,
+    reason: 'completed_successfully',
+    influencerParticipated: true,
+    completedProperly: true
+  };
+}
+
+/**
+ * purchased_slotsテーブルの情報から決済判定を行う（Webhookイベントログがない場合）
+ * 
+ * 判定条件:
+ * 1. インフルエンサーが参加した（influencer_joined_at !== null）
+ * 2. 開始時刻前に参加（influencer_joined_at <= scheduled_start_time）
+ * 3. 予定終了時刻まで留まっている（call_ended_at >= scheduled_end_time）
+ * 4. 途中退室の概算判定（call_actual_duration_minutes >= duration_minutes）
+ * 
+ * @param purchasedSlot purchased_slotsレコード
+ * @param callSlot call_slotsレコード
+ * @returns 判定結果
+ */
+function shouldCaptureTalkPaymentFromPurchasedSlot(
+  purchasedSlot: any,
+  callSlot: any
+): TalkCompletionCheck {
+  console.log('🔵 purchased_slots情報で決済判定開始');
+
+  // 1. インフルエンサーが参加したかチェック
+  if (!purchasedSlot.influencer_joined_at) {
+    console.warn('⚠️ インフルエンサー不参加（no-show）');
+    return {
+      shouldCapture: false,
+      reason: 'influencer_no_show',
+      influencerParticipated: false,
+      completedProperly: false
+    };
+  }
+
+  const scheduledStartTime = new Date(callSlot.scheduled_start_time);
+  const scheduledEndTime = new Date(scheduledStartTime.getTime() + callSlot.duration_minutes * 60 * 1000);
+  const influencerJoinedAt = new Date(purchasedSlot.influencer_joined_at);
+
+  // 2. 開始時刻前に参加しているかチェック
+  if (influencerJoinedAt > scheduledStartTime) {
+    console.warn('⚠️ インフルエンサーが予定開始時刻より後に参加:', {
+      influencerJoinedAt: influencerJoinedAt.toISOString(),
+      scheduledStartTime: scheduledStartTime.toISOString()
+    });
+    return {
+      shouldCapture: false,
+      reason: 'influencer_joined_after_start',
+      influencerParticipated: true,
+      completedProperly: false
+    };
+  }
+
+  // 3. 通話終了時刻が記録されているかチェック
+  if (!purchasedSlot.call_ended_at) {
+    console.warn('⚠️ 通話終了時刻が記録されていません');
+    return {
+      shouldCapture: false,
+      reason: 'call_end_time_not_recorded',
+      influencerParticipated: true,
+      completedProperly: false
+    };
+  }
+
+  const callEndedAt = new Date(purchasedSlot.call_ended_at);
+
+  // 4. 予定終了時刻まで留まっているかチェック
+  if (callEndedAt < scheduledEndTime) {
+    console.warn('⚠️ 予定終了時刻より前に終了:', {
+      callEndedAt: callEndedAt.toISOString(),
+      scheduledEndTime: scheduledEndTime.toISOString()
+    });
+    return {
+      shouldCapture: false,
+      reason: 'ended_before_scheduled_end',
+      influencerParticipated: true,
+      completedProperly: false
+    };
+  }
+
+  // 5. 途中退室の概算判定（実際の通話時間が予定時間以上か）
+  const actualDuration = purchasedSlot.call_actual_duration_minutes || 0;
+  if (actualDuration < callSlot.duration_minutes) {
+    console.warn('⚠️ 実際の通話時間が予定時間より短い:', {
+      actualDuration,
+      scheduledDuration: callSlot.duration_minutes
+    });
+    return {
+      shouldCapture: false,
+      reason: 'actual_duration_less_than_scheduled',
+      influencerParticipated: true,
+      completedProperly: false
+    };
+  }
+
+  // 6. すべての条件を満たした → 課金OK
+  console.log('✅ purchased_slots情報による課金条件をすべて満たしました');
   return {
     shouldCapture: true,
     reason: 'completed_successfully',

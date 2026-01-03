@@ -71,7 +71,9 @@ console.log('決済は保留: Talk完了後にWebhookで判定');
 
 **実装ファイル:** `/backend/src/server.ts` (line 1100-1168)
 
-### 2. Daily.co Webhook受信（`/api/daily/webhook`）
+### 2. 決済処理のトリガー（2つのパス）
+
+#### パスA: Daily.co Webhook受信（`/api/daily/webhook`）
 
 Daily.coから以下のイベントを受信:
 - `participant.joined` - 参加者が入室
@@ -100,11 +102,39 @@ if (event.type === 'room.ended' || event.type === 'meeting.ended') {
 
 **実装ファイル:** `/backend/src/routes/dailyWebhook.ts` (line 12-110)
 
+#### パスB: 手動終了時（`/api/calls/end-call`）
+
+ユーザーが手動で通話を終了した場合、Webhookを待たずに決済処理を実行:
+
+```typescript
+// /api/calls/end-call エンドポイント
+router.post('/end-call', async (req: Request, res: Response) => {
+  // ... 通話終了情報を記録 ...
+
+  // 決済処理を実行（Webhookを待たない）
+  const { processTalkPayment } = await import('../routes/dailyWebhook');
+  processTalkPayment(supabase, purchasedSlotId).catch(error => {
+    console.error('❌ 決済処理エラー:', error);
+  });
+
+  // その後、ルームを削除
+  await deleteDailyRoom(purchasedSlot.video_call_room_id);
+});
+```
+
+**実装ファイル:** `/backend/src/routes/calls.ts` (line 354-439)
+
+**重要**: 手動終了時も決済処理を実行することで、Webhookが届かない場合でも決済が確実に処理されます。
+
 ### 3. 決済判定ロジック（`shouldCaptureTalkPayment`）
+
+**ハイブリッド判定方式**: Daily.co Webhookイベントログの有無に応じて、最適な判定方法を選択します。
+
+#### 方式A: Webhookイベントログが存在する場合（厳密な判定）
 
 以下の3つの条件を**すべて満たす**場合のみ決済を確定:
 
-#### 条件1: インフルエンサーが参加した
+**条件1: インフルエンサーが参加した**
 ```typescript
 const influencerJoined = events.some((e) =>
   (e.event_type === 'participant.joined') &&
@@ -112,7 +142,7 @@ const influencerJoined = events.some((e) =>
 );
 ```
 
-#### 条件2: ルームが「規定時間経過による自動終了」になった
+**条件2: ルームが「規定時間経過による自動終了」になった**
 ```typescript
 const roomEndedByDuration = events.some((e) =>
   (e.event_type === 'room.ended' || e.event_type === 'meeting.ended') &&
@@ -124,29 +154,33 @@ const roomEndedByDuration = events.some((e) =>
 - `room_end_reason === 'duration'` = Daily.coが設定した時間が経過して自動終了
 - `room_end_reason === 'manual'` = 誰かが手動で終了ボタンを押した（規定時間前）
 
-#### 条件3: インフルエンサーが途中退出していない
+**条件3: インフルエンサーが途中退出していない**
 ```typescript
-function hasInfluencerLeftBeforeRoomEnd(events, influencerUserId) {
-  const roomEndEvent = events.find(e =>
-    e.event_type === 'room.ended' || e.event_type === 'meeting.ended'
-  );
-  const influencerLeftEvent = events.find(e =>
-    e.event_type === 'participant.left' &&
-    e.user_id === influencerUserId
-  );
-
-  if (!influencerLeftEvent) {
-    return false; // 退出イベントがない = 最後までいた
-  }
-
-  const roomEndTime = new Date(roomEndEvent.created_at);
-  const leftTime = new Date(influencerLeftEvent.created_at);
-
-  return leftTime < roomEndTime; // 終了前に退出していたらtrue
+function hasInfluencerStayedFromStartToEnd(events, influencerUserId, scheduledStartTime, scheduledEndTime) {
+  // インフルエンサーの参加・退出イベントを分析
+  // 開始時刻から終了時刻まで連続参加しているか確認
 }
 ```
 
-**実装ファイル:** `/backend/src/services/paymentCapture.ts` (line 25-182)
+#### 方式B: Webhookイベントログが存在しない場合（`purchased_slots`情報で判定）
+
+`purchased_slots`テーブルの情報を使用して判定:
+
+**条件1: インフルエンサーが参加した**
+- `influencer_joined_at !== null`
+
+**条件2: 開始時刻前に参加**
+- `influencer_joined_at <= scheduled_start_time`
+
+**条件3: 予定終了時刻まで留まっている**
+- `call_ended_at >= scheduled_end_time`
+
+**条件4: 途中退室の概算判定**
+- `call_actual_duration_minutes >= duration_minutes`（概算判定）
+
+**注意**: 方式Bでは途中退室の厳密な判定は困難なため、実際の通話時間で概算判定します。
+
+**実装ファイル:** `/backend/src/services/paymentCapture.ts` (line 31-261)
 
 ### 4. 決済確定または与信キャンセル（`captureTalkPayment`）
 

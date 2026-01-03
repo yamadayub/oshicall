@@ -421,7 +421,14 @@ router.post('/end-call', async (req: Request, res: Response) => {
       console.log('✅ call_slots.status更新成功 → completed');
     }
 
-    // 4. Daily.coルームを削除
+    // 4. 決済処理を実行（Webhookを待たない）
+    // 非同期で実行（レスポンスは即座に返す）
+    const { processTalkPayment } = await import('./dailyWebhook');
+    processTalkPayment(supabase, purchasedSlotId).catch(error => {
+      console.error('❌ 決済処理エラー:', error);
+    });
+
+    // 5. Daily.coルームを削除
     if (purchasedSlot.video_call_room_id) {
       await deleteDailyRoom(purchasedSlot.video_call_room_id);
     }
