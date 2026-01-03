@@ -171,15 +171,50 @@ export async function processTalkPayment(supabase: any, purchasedSlotId: string)
       return;
     }
 
-    // 既に決済済みかチェック
+    // 既に決済済みかチェック（送金処理が未実行の場合は実行する）
     const { data: existingPayment } = await supabase
       .from('payment_transactions')
-      .select('id')
+      .select('id, stripe_transfer_id, stripe_payment_intent_id')
       .eq('purchased_slot_id', purchasedSlotId)
-      .single();
+      .maybeSingle();
 
     if (existingPayment) {
-      console.log('⚠️ 既に決済済み:', purchasedSlotId);
+      // 送金処理が未実行の場合は実行する
+      if (!existingPayment.stripe_transfer_id) {
+        console.log('⚠️ 既に決済済みだが送金処理が未実行。送金処理を実行します:', purchasedSlotId);
+        
+        // paymentIntentIdとbidAmountを取得して送金処理を実行
+        const { data: bid } = await supabase
+          .from('bids')
+          .select('*')
+          .eq('auction_id', purchasedSlot.auction_id)
+          .eq('user_id', purchasedSlot.fan_user_id)
+          .order('bid_amount', { ascending: false })
+          .limit(1)
+          .single();
+
+        const paymentIntentId = existingPayment.stripe_payment_intent_id ||
+          bid?.stripe_payment_intent_id ||
+          purchasedSlot.stripe_payment_intent_id;
+
+        const bidAmount = bid?.bid_amount || purchasedSlot.winning_bid_amount;
+
+        if (paymentIntentId && bidAmount) {
+          console.log('🔵 送金処理を実行:', { purchasedSlotId, paymentIntentId, bidAmount });
+          const { captureTalkPayment } = await import('../services/paymentCapture');
+          const result = await captureTalkPayment(supabase, purchasedSlotId, paymentIntentId, bidAmount);
+          
+          if (result.success) {
+            console.log('✅ 送金処理成功:', result.message);
+          } else {
+            console.log('⚠️ 送金処理スキップ:', result.message);
+          }
+        } else {
+          console.error('❌ 送金処理に必要な情報が不足:', { paymentIntentId, bidAmount });
+        }
+      } else {
+        console.log('ℹ️ 既に決済済みかつ送金済み:', purchasedSlotId);
+      }
       return;
     }
 
