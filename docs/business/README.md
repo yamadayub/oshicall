@@ -81,7 +81,7 @@ So that [目的/ビジネス価値]
 コード
 ```
 
-詳細は [/docs/ai_workflow/AI_TDD_PROCESS_v3.md](../ai_workflow/AI_TDD_PROCESS_v3.md) を参照してください。
+詳細は [/docs/ai_workflow/AI_TDD_DEVELOPMENT_GUIDE.md](../ai_workflow/AI_TDD_DEVELOPMENT_GUIDE.md) を参照してください。
 
 ## 使い方
 
@@ -113,7 +113,7 @@ So that [目的/ビジネス価値]
 
 - [機能仕様](../functional/) - 実装詳細
 - [テスト計画](../test/plans/) - テストケース
-- [AI開発プロセス](../ai_workflow/AI_TDD_PROCESS_v3.md) - 開発フロー
+- [AI開発プロセス](../ai_workflow/AI_TDD_DEVELOPMENT_GUIDE.md) - 開発フロー
 
 ---
 

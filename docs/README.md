@@ -39,7 +39,7 @@ docs/
 ├── archive/                     # 過去のドキュメント（参照専用）
 │
 └── ai_workflow/                 # AI開発プロセス
-    ├── AI_TDD_PROCESS_v3.md     # AI-TDDプロセス
+    ├── AI_TDD_DEVELOPMENT_GUIDE.md  # AI-TDD開発ガイド（統合版）
     └── CODE_CHANGE_WORKFLOW.md   # コード変更ワークフロー
 ```
 
@@ -114,9 +114,8 @@ docs/
 
 ### AI開発プロセス（/docs/ai_workflow/）
 
-- [AI-TDDプロセス](./ai_workflow/AI_TDD_PROCESS_v3.md) - AI駆動テスト開発プロセス
+- [AI-TDD開発ガイド](./ai_workflow/AI_TDD_DEVELOPMENT_GUIDE.md) - AI駆動テスト開発の包括的ガイド（統合版）
 - [コード変更ワークフロー](./ai_workflow/CODE_CHANGE_WORKFLOW.md) - コード変更のワークフローガイドライン
-- [AI開発ガイド](./ai_workflow/AI_DEVELOPMENT_GUIDE.md) - AI開発のベストプラクティス
 
 ## 🗂️ ドキュメント体系
 
@@ -132,7 +131,7 @@ docs/
 コード
 ```
 
-詳細は [/docs/ai_workflow/AI_TDD_PROCESS_v3.md](./ai_workflow/AI_TDD_PROCESS_v3.md) を参照してください。
+詳細は [/docs/ai_workflow/AI_TDD_DEVELOPMENT_GUIDE.md](./ai_workflow/AI_TDD_DEVELOPMENT_GUIDE.md) を参照してください。
 
 ## 💡 ドキュメントの使い方
 
@@ -203,7 +202,7 @@ docs/
 - [業務仕様](./business/) - ビジネス要件の原本
 - [機能仕様](./functional/) - 実装詳細
 - [テスト計画](./test/plans/) - テストケース
-- [AI開発プロセス](./ai_workflow/AI_TDD_PROCESS_v3.md) - 開発フロー
+- [AI開発プロセス](./ai_workflow/AI_TDD_DEVELOPMENT_GUIDE.md) - 開発フロー
 
 ---
 
