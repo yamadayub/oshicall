@@ -2378,8 +2378,8 @@ export default function MyPage() {
                   value={editForm.duration_minutes}
                   onChange={(e) => setEditForm({ ...editForm, duration_minutes: parseInt(e.target.value) })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  min={10}
-                  step={5}
+                  min={1}
+                  step={1}
                 />
               </div>
 

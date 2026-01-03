@@ -95,8 +95,29 @@ export default function CallPage() {
         if (data.call_status === 'completed') {
           setState('ended');
         } else {
-          // 待機室にはいつでも入室可能
-          setState('ready');
+          // 既にDaily.coに接続済みの場合は、roomDataを取得してVideoCallを表示
+          const isAlreadyJoined = (isInfluencer && data.influencer_joined_at) || (isFan && data.fan_joined_at);
+          
+          if (isAlreadyJoined) {
+            console.log('🔵 既に接続済み - roomDataを取得してVideoCallを表示');
+            try {
+              // roomDataを取得
+              const { createCallRoom } = await import('../api/calls');
+              const roomDataResult = await createCallRoom(purchasedSlotId!, supabaseUser.id);
+              setRoomData({
+                roomUrl: roomDataResult.roomUrl,
+                token: roomDataResult.token,
+              });
+              setState('in-call');
+            } catch (err: any) {
+              console.error('❌ roomData取得エラー:', err);
+              // エラーでも待機室に戻る
+              setState('ready');
+            }
+          } else {
+            // 待機室にはいつでも入室可能
+            setState('ready');
+          }
         }
 
       } catch (err: any) {

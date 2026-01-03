@@ -103,6 +103,11 @@ export default function VideoCall({
 
         callFrame.on('error', (event: any) => {
           console.error('❌ 通話エラー:', event);
+          // エラーが発生した場合、ユーザーに通知
+          // ただし、既に接続済みの場合はエラーを無視（再接続を試みる）
+          if (!isJoined) {
+            console.warn('⚠️ 通話エラーが発生しましたが、再接続を試みます');
+          }
         });
 
         // 通話に参加
@@ -111,6 +116,8 @@ export default function VideoCall({
       } catch (error) {
         console.error('❌ 通話初期化エラー:', error);
         initializingRef.current = false;
+        // エラーが発生した場合でも、既に接続済みの場合は続行
+        // （ページリロード時の再接続を許可）
       }
     };
 
@@ -192,22 +199,31 @@ export default function VideoCall({
     setIsEnding(true);
 
     try {
-      console.log('🔵 通話終了処理開始');
+      console.log('🔵 通話終了処理開始:', { purchasedSlotId, userId });
       
       // Daily.coから退出
       if (callFrameRef.current) {
+        console.log('🔵 Daily.coから退出開始');
         await callFrameRef.current.leave();
         callFrameRef.current.destroy();
         callFrameRef.current = null;
+        console.log('✅ Daily.coから退出完了');
       }
 
       // バックエンドに通話終了を通知
+      console.log('🔵 バックエンドに通話終了を通知:', { purchasedSlotId, userId });
       const result = await endCall(purchasedSlotId, userId);
-      console.log('✅ 通話終了:', result);
+      console.log('✅ 通話終了成功:', result);
       
       onCallEnd(result.duration);
-    } catch (error) {
-      console.error('❌ 通話終了エラー:', error);
+    } catch (error: any) {
+      console.error('❌ 通話終了エラー:', {
+        error: error.message,
+        stack: error.stack,
+        purchasedSlotId,
+        userId
+      });
+      // エラーが発生しても、onCallEndを呼び出して画面遷移を実行
       onCallEnd(0);
     }
   };

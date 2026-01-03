@@ -149,6 +149,7 @@ export const createDailyWebhookRouter = (supabase: any) => {
  * 手動実行用にもエクスポート
  */
 export async function processTalkPayment(supabase: any, purchasedSlotId: string) {
+  console.log('🔵 processTalkPayment開始:', purchasedSlotId);
   try {
     console.log('🔵 Talk決済処理開始:', purchasedSlotId);
 

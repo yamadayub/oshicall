@@ -423,9 +423,14 @@ router.post('/end-call', async (req: Request, res: Response) => {
 
     // 4. 決済処理を実行（Webhookを待たない）
     // 非同期で実行（レスポンスは即座に返す）
+    console.log('🔵 決済処理をトリガー:', purchasedSlotId);
     const { processTalkPayment } = await import('./dailyWebhook');
     processTalkPayment(supabase, purchasedSlotId).catch(error => {
-      console.error('❌ 決済処理エラー:', error);
+      console.error('❌ 決済処理エラー:', {
+        error: error.message,
+        stack: error.stack,
+        purchasedSlotId
+      });
     });
 
     // 5. Daily.coルームを削除

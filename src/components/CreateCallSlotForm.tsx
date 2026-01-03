@@ -288,6 +288,7 @@ export default function CreateCallSlotForm({
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent text-sm"
                 required
               >
+                <option value={1}>1分（テスト用）</option>
                 <option value={10}>10分</option>
                 <option value={15}>15分</option>
                 <option value={20}>20分</option>
