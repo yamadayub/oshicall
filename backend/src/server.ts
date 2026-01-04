@@ -414,27 +414,28 @@ app.post('/api/stripe/authorize-payment', async (req: Request, res: Response) =>
         });
 
         paymentIntent = await stripe.paymentIntents.create({
-        amount: Math.round(amount), // 円単位
-        currency: 'jpy',
-        customer: customerId,
-        payment_method: defaultPaymentMethodId as string,
-        capture_method: 'manual', // 手動キャプチャ（与信のみ）
-        confirm: true, // 即座に確認
-        off_session: true, // オフセッション決済
-        // Destination Charges用の設定
-        on_behalf_of: influencer.stripe_connect_account_id,
-        application_fee_amount: platformFee,
-        transfer_data: {
-          destination: influencer.stripe_connect_account_id,
-        },
-        metadata: {
-          auction_id: auctionId,
-          user_id: userId,
-          influencer_id: influencerUserId,
-          platform_fee_rate: platformFeeRate.toString(),
-          payment_method: 'destination_charges',
-        },
-      });
+          amount: Math.round(amount), // 円単位
+          currency: 'jpy',
+          customer: customerId,
+          payment_method: defaultPaymentMethodId as string,
+          capture_method: 'manual', // 手動キャプチャ（与信のみ）
+          confirm: true, // 即座に確認
+          off_session: true, // オフセッション決済
+          // Destination Charges用の設定
+          on_behalf_of: influencer.stripe_connect_account_id,
+          application_fee_amount: platformFee,
+          transfer_data: {
+            destination: influencer.stripe_connect_account_id,
+          },
+          metadata: {
+            auction_id: auctionId,
+            user_id: userId,
+            influencer_id: influencerUserId,
+            platform_fee_rate: platformFeeRate.toString(),
+            payment_method: 'destination_charges',
+          },
+        });
+      }
     } else {
       // フォールバック: Direct Charges方式（オンボーディング未完了の場合）
       console.log('⚠️ オンボーディング未完了のため、Direct Charges方式でPaymentIntentを作成');
