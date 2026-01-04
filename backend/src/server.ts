@@ -711,21 +711,28 @@ app.post('/api/stripe/influencer-earnings', async (req: Request, res: Response) 
     }
 
     // 集計計算
-    const totalEarnings = transactions?.reduce((sum, tx) => sum + (tx.influencer_payout || 0), 0) || 0;
+    // Transfer済み（総売上）
+    const totalEarnings = transactions?.filter(tx => tx.stripe_transfer_id !== null)
+      .reduce((sum, tx) => sum + (tx.influencer_payout || 0), 0) || 0;
+    
+    // Transfer未実施（入金予定額）
+    const pendingPayout = transactions?.filter(tx => tx.stripe_transfer_id === null)
+      .reduce((sum, tx) => sum + (tx.influencer_payout || 0), 0) || 0;
+    
     const totalCallCount = transactions?.length || 0;
 
-    // 今月の売上を計算
+    // 今月の売上を計算（Transfer済みのみ）
     const now = new Date();
     const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 
     const currentMonthTx = transactions?.filter(tx =>
-      new Date(tx.created_at) >= currentMonthStart
+      new Date(tx.created_at) >= currentMonthStart && tx.stripe_transfer_id !== null
     ) || [];
 
     const previousMonthTx = transactions?.filter(tx => {
       const txDate = new Date(tx.created_at);
-      return txDate >= previousMonthStart && txDate < currentMonthStart;
+      return txDate >= previousMonthStart && txDate < currentMonthStart && tx.stripe_transfer_id !== null;
     }) || [];
 
     const currentMonthEarnings = currentMonthTx.reduce((sum, tx) => sum + (tx.influencer_payout || 0), 0);
@@ -779,9 +786,10 @@ app.post('/api/stripe/influencer-earnings', async (req: Request, res: Response) 
     }));
 
     res.json({
-      totalEarnings,
-      availableBalance,
-      pendingBalance,
+      totalEarnings,      // Transfer済み（総売上）
+      pendingPayout,      // Capture済み、Transfer未実施（入金予定額）
+      availableBalance,   // Stripe残高（参考情報）
+      pendingBalance,     // Stripe保留中（参考情報）
       recentTransactions,
       monthlyStats: {
         currentMonth: {
@@ -1063,7 +1071,90 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
     switch (event.type) {
       case 'payment_intent.succeeded':
         // 決済成功時の処理
-        console.log('PaymentIntent成功:', event.data.object.id);
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        console.log('🔵 PaymentIntent成功:', paymentIntent.id);
+        
+        // Transfer未実施のpayment_transactionsを検索
+        const { data: paymentTx, error: txError } = await supabase
+          .from('payment_transactions')
+          .select(`
+            *,
+            purchased_slots!inner (
+              influencer_user_id,
+              auction_id
+            )
+          `)
+          .eq('stripe_payment_intent_id', paymentIntent.id)
+          .is('stripe_transfer_id', null) // Transfer未実施のもの
+          .single();
+
+        if (txError) {
+          console.error('❌ payment_transactions取得エラー:', txError);
+          // エラーでも続行（既にTransfer済みの可能性がある）
+        } else if (paymentTx && paymentTx.purchased_slots?.influencer_user_id) {
+          const influencerUserId = Array.isArray(paymentTx.purchased_slots)
+            ? paymentTx.purchased_slots[0].influencer_user_id
+            : paymentTx.purchased_slots.influencer_user_id;
+
+          const auctionId = Array.isArray(paymentTx.purchased_slots)
+            ? paymentTx.purchased_slots[0].auction_id
+            : paymentTx.purchased_slots.auction_id;
+
+          console.log('🔵 Transfer処理開始:', {
+            paymentIntentId: paymentIntent.id,
+            influencerUserId,
+            influencerPayout: paymentTx.influencer_payout
+          });
+
+          // インフルエンサー情報を取得
+          const { data: influencer, error: influencerError } = await supabase
+            .from('users')
+            .select('stripe_connect_account_id')
+            .eq('id', influencerUserId)
+            .single();
+
+          if (influencerError) {
+            console.error('❌ インフルエンサー情報取得エラー:', influencerError);
+          } else if (influencer?.stripe_connect_account_id) {
+            try {
+              // Transferを実行
+              const transfer = await stripe.transfers.create({
+                amount: Math.round(paymentTx.influencer_payout || 0),
+                currency: 'jpy',
+                destination: influencer.stripe_connect_account_id,
+                transfer_group: auctionId || paymentTx.purchased_slot_id,
+              });
+
+              console.log('✅ Stripe Transfer作成成功:', transfer.id);
+
+              // stripe_transfer_idを更新
+              const { error: updateError } = await supabase
+                .from('payment_transactions')
+                .update({ stripe_transfer_id: transfer.id })
+                .eq('stripe_payment_intent_id', paymentIntent.id);
+
+              if (updateError) {
+                console.error('❌ payment_transactions更新エラー:', updateError);
+              } else {
+                console.log('✅ payment_transactions更新成功');
+              }
+            } catch (transferError: any) {
+              console.error('❌ Stripe Transfer作成エラー:', {
+                error: transferError.message,
+                paymentIntentId: paymentIntent.id,
+                influencerUserId
+              });
+              // エラーでも続行（後でリトライ可能）
+            }
+          } else {
+            console.warn('⚠️ stripe_connect_account_id未登録のためTransferスキップ:', {
+              influencerUserId,
+              stripe_connect_account_id: influencer?.stripe_connect_account_id
+            });
+          }
+        } else {
+          console.log('ℹ️ Transfer対象のpayment_transactionsが見つかりません（既にTransfer済みの可能性）');
+        }
         break;
 
       case 'payment_intent.payment_failed':

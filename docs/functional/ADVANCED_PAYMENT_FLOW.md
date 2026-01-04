@@ -190,7 +190,7 @@ function hasInfluencerStayedFromStartToEnd(events, influencerUserId, scheduledSt
 // 1. Payment Intentをcapture
 const capturedPayment = await stripe.paymentIntents.capture(paymentIntentId);
 
-// 2. payment_transactionsに記録
+// 2. payment_transactionsに記録（stripe_transfer_idはnullのまま）
 await supabase.from('payment_transactions').insert({
   purchased_slot_id: purchasedSlotId,
   stripe_payment_intent_id: capturedPayment.id,
@@ -199,6 +199,7 @@ await supabase.from('payment_transactions').insert({
   platform_fee: platformFee,
   influencer_payout: influencerPayout,
   status: 'captured',
+  stripe_transfer_id: null, // TransferはWebhookで実行
 });
 
 // 3. purchased_slotsのステータスを更新
@@ -213,6 +214,8 @@ await supabase.rpc('update_user_statistics', {
   p_influencer_id: purchasedSlot.influencer_user_id,
   p_amount: bidAmount,
 });
+
+// 注意: Transfer処理は実行しない（Stripe Webhookで実行）
 ```
 
 #### ケースB: 条件を満たさない場合 → 与信キャンセル
@@ -230,7 +233,64 @@ await supabase.from('purchased_slots').update({
 // ファンのカードへの与信が解放され、課金されない
 ```
 
-**実装ファイル:** `/backend/src/services/paymentCapture.ts` (line 193-306)
+**実装ファイル:** `/backend/src/services/paymentCapture.ts` (line 368-578)
+
+### 5. インフルエンサーへの送金（Stripe Webhook）
+
+Stripe Webhook（`payment_intent.succeeded`）を受信した時点で、インフルエンサーへの送金（Transfer）を実行します。
+
+```typescript
+// /api/stripe/webhook エンドポイント
+app.post('/api/stripe/webhook', async (req: Request, res: Response) => {
+  const event = stripe.webhooks.constructEvent(...);
+
+  switch (event.type) {
+    case 'payment_intent.succeeded':
+      const paymentIntent = event.data.object;
+      
+      // payment_transactionsを検索
+      const { data: paymentTx } = await supabase
+        .from('payment_transactions')
+        .select('*, purchased_slots!inner(influencer_user_id)')
+        .eq('stripe_payment_intent_id', paymentIntent.id)
+        .is('stripe_transfer_id', null) // Transfer未実施のもの
+        .single();
+
+      if (paymentTx && paymentTx.purchased_slots?.influencer_user_id) {
+        // インフルエンサー情報を取得
+        const { data: influencer } = await supabase
+          .from('users')
+          .select('stripe_connect_account_id')
+          .eq('id', paymentTx.purchased_slots.influencer_user_id)
+          .single();
+
+        if (influencer?.stripe_connect_account_id) {
+          // Transferを実行
+          const transfer = await stripe.transfers.create({
+            amount: Math.round(paymentTx.influencer_payout),
+            currency: 'jpy',
+            destination: influencer.stripe_connect_account_id,
+            transfer_group: paymentTx.purchased_slots.auction_id || paymentTx.purchased_slot_id,
+          });
+
+          // stripe_transfer_idを更新
+          await supabase
+            .from('payment_transactions')
+            .update({ stripe_transfer_id: transfer.id })
+            .eq('stripe_payment_intent_id', paymentIntent.id);
+        }
+      }
+      break;
+  }
+});
+```
+
+**実装ファイル:** `/backend/src/server.ts` (line 1053-1120)
+
+**メリット:**
+- CaptureとTransferが分離され、プラットフォームアカウントへの入金確認後に送金される
+- 残高不足エラーを回避できる
+- エラーハンドリングが容易（Transfer失敗時のリトライ可能）
 
 ## データフロー図
 
@@ -286,11 +346,33 @@ await supabase.from('purchased_slots').update({
             │                       │
             ▼                       ▼
     ┌───────────────┐       ┌───────────────┐
-    │ status:       │       │ status:       │
-    │ 'completed'   │       │ 'cancelled'   │
-    │               │       │               │
-    │ ファンに課金   │       │ ファンに課金なし│
-    └───────────────┘       └───────────────┘
+    │ payment_      │       │ status:       │
+    │ transactions  │       │ 'cancelled'   │
+    │ status:       │       │               │
+    │ 'captured'    │       │ ファンに課金なし│
+    │ transfer_id:  │       └───────────────┘
+    │ null          │
+    │ (入金予定額)   │
+    └───────┬───────┘
+            │
+            │ Stripe Webhook (payment_intent.succeeded)
+            │
+            ▼
+    ┌───────────────┐
+    │ Transfer実行  │
+    │ stripe.       │
+    │ transfers.    │
+    │ create()      │
+    └───────┬───────┘
+            │
+            ▼
+    ┌───────────────┐
+    │ payment_      │
+    │ transactions  │
+    │ transfer_id:  │
+    │ 設定済み       │
+    │ (総売上)       │
+    └───────────────┘
 ```
 
 ## エラーケース一覧
@@ -427,14 +509,54 @@ https://staging.oshi-talk.com/api/daily/webhook
 4. ルームが手動終了
 5. Webhook受信 → 与信キャンセル（課金なし） ✅
 
+## インフルエンサーの売上表示
+
+### マイページでの売上表示ロジック
+
+`/api/stripe/influencer-earnings`エンドポイントで、以下の情報を返します:
+
+```typescript
+// payment_transactionsから集計
+const { data: allTransactions } = await supabase
+  .from('payment_transactions')
+  .select('*')
+  .eq('purchased_slots.influencer_user_id', user.id)
+  .eq('status', 'captured');
+
+// Transfer済み（総売上）
+const totalEarnings = allTransactions
+  .filter(tx => tx.stripe_transfer_id !== null)
+  .reduce((sum, tx) => sum + tx.influencer_payout, 0);
+
+// Transfer未実施（入金予定額）
+const pendingPayout = allTransactions
+  .filter(tx => tx.stripe_transfer_id === null)
+  .reduce((sum, tx) => sum + tx.influencer_payout, 0);
+
+// Stripe残高（参考情報）
+const balance = await stripe.balance.retrieve({
+  stripeAccount: user.stripe_connect_account_id,
+});
+
+res.json({
+  totalEarnings,        // Transfer済み
+  pendingPayout,        // Capture済み、Transfer未実施
+  availableBalance: balance.available.reduce(...), // Stripe残高
+  pendingBalance: balance.pending.reduce(...),     // Stripe保留中
+});
+```
+
+**実装ファイル:** `/backend/src/server.ts` (line 673-805)
+
 ## 関連ファイル
 
 | ファイル | 説明 |
 |---------|------|
-| `/backend/src/server.ts` | オークション終了処理（決済保留） |
+| `/backend/src/server.ts` | オークション終了処理（決済保留）、Stripe Webhook処理、売上データ取得 |
 | `/backend/src/routes/dailyWebhook.ts` | Daily.co Webhook受信とイベント保存 |
-| `/backend/src/services/paymentCapture.ts` | 決済判定ロジックと実行 |
-| `/supabase/migrations/20251113000000_initial_schema.sql` | DBスキーマ（daily_call_events, purchased_slots） |
+| `/backend/src/services/paymentCapture.ts` | 決済判定ロジックとCapture実行 |
+| `/supabase/migrations/20251113000000_initial_schema.sql` | DBスキーマ（daily_call_events, purchased_slots, payment_transactions） |
+| `/src/components/InfluencerEarningsDashboard.tsx` | インフルエンサーの売上ダッシュボード |
 
 ## まとめ
 

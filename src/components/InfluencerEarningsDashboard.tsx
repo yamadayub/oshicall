@@ -3,9 +3,10 @@ import React, { useEffect, useState } from 'react';
 import { getInfluencerEarnings, createStripeDashboardLink } from '../api/stripe';
 
 interface EarningsData {
-  totalEarnings: number;
-  availableBalance: number;
-  pendingBalance: number;
+  totalEarnings: number;      // Transfer済み（総売上）
+  pendingPayout: number;      // Capture済み、Transfer未実施（入金予定額）
+  availableBalance: number;   // Stripe残高（参考情報）
+  pendingBalance: number;     // Stripe保留中（参考情報）
   recentTransactions: Array<{
     id: string;
     talkTitle: string;
@@ -217,10 +218,10 @@ export const InfluencerEarningsDashboard: React.FC<Props> = ({ authUserId }) => 
             <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 sm:p-6 rounded-lg border border-blue-200">
               <div className="text-xs sm:text-sm text-blue-700 font-medium mb-1 whitespace-nowrap">入金予定額</div>
               <div className="text-2xl sm:text-3xl font-bold text-blue-900 whitespace-nowrap overflow-hidden text-ellipsis">
-                {formatCurrency(earnings.pendingBalance)}
+                {formatCurrency(earnings.pendingPayout)}
               </div>
               <div className="text-xs text-blue-600 mt-2 whitespace-nowrap">
-                通常7営業日後に入金
+                Capture済み、送金待ち
               </div>
             </div>
 
