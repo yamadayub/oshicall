@@ -930,28 +930,10 @@ app.post('/api/stripe/influencer-earnings', async (req: Request, res: Response) 
           })),
         });
 
-        // 入金予定額: Balance Transactionsからpendingステータスのものを集計
-        // Stripeダッシュボードの「入金予定額」に合わせる
-        pendingPayoutFromStripe = balanceTransactions.data
-          .filter(bt => {
-            // Transfer、Charge、Paymentで、保留中（pending）のもの
-            // 注意: Destination Charges方式の場合、type='payment'が返される
-            const isTransferChargeOrPayment = bt.type === 'transfer' || bt.type === 'charge' || bt.type === 'payment';
-            // 金額が正の値（入金）
-            const isPositive = bt.amount > 0;
-            // 円単位
-            const isJpy = bt.currency === 'jpy';
-            // ステータスがpending（保留中）
-            const isPending = bt.status === 'pending';
-            return isTransferChargeOrPayment && isPositive && isJpy && isPending;
-          })
-          .reduce((sum, bt) => sum + bt.amount, 0); // JPYはzero-decimal currencyのため、amountは既に円単位
-
-        console.log('✅ Balance Transactionsから集計した入金予定額:', pendingPayoutFromStripe);
+        // 注: 入金予定額はBalance APIから取得するため、ここでは計算しない
 
         console.log('✅ Stripeから売上データ取得完了:', {
           totalEarnings: totalEarningsFromStripe,
-          pendingPayout: pendingPayoutFromStripe,
         });
 
       } catch (error: any) {
@@ -1065,7 +1047,7 @@ app.post('/api/stripe/influencer-earnings', async (req: Request, res: Response) 
       debugInfo = {
         source: 'stripe',
         totalEarningsFromStripe,
-        pendingPayoutFromStripe,
+        pendingBalance,
         connectAccountId: user.stripe_connect_account_id,
       };
 
