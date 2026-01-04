@@ -839,7 +839,6 @@ app.post('/api/stripe/influencer-earnings', async (req: Request, res: Response) 
 
     // Stripeから直接売上データを取得（Balance Transactions APIを使用）
     let totalEarningsFromStripe = 0;
-    let pendingPayoutFromStripe = 0;
     let stripeEarningsError: string | null = null;
 
     if (user.stripe_connect_account_id) {
@@ -966,6 +965,45 @@ app.post('/api/stripe/influencer-earnings', async (req: Request, res: Response) 
       }
     }
 
+    // Stripeから残高情報を取得（入金予定額と出金可能額の計算に使用）
+    let availableBalance = 0;
+    let pendingBalance = 0;
+    let balanceError: string | null = null;
+
+    if (user.stripe_connect_account_id) {
+      try {
+        console.log('🔵 Stripe残高取得開始:', user.stripe_connect_account_id);
+
+        const balance = await stripe.balance.retrieve({
+          // stripeAccountは第2引数のオプションに含める必要がある
+        }, {
+          stripeAccount: user.stripe_connect_account_id,
+        });
+
+        console.log('✅ Stripe残高取得成功:', {
+          available: balance.available,
+          pending: balance.pending,
+          connect_reserved: balance.connect_reserved,
+        });
+
+        // JPYはzero-decimal currencyのため、amountは既に円単位（100で割る必要なし）
+        availableBalance = balance.available.reduce((sum, b) => sum + b.amount, 0);
+        pendingBalance = balance.pending.reduce((sum, b) => sum + b.amount, 0);
+
+        console.log('💰 計算後の残高:', { availableBalance, pendingBalance });
+      } catch (error: any) {
+        console.error('❌ 残高取得エラー:', {
+          message: error.message,
+          type: error.type,
+          code: error.code,
+          statusCode: error.statusCode,
+        });
+        balanceError = error.message;
+      }
+    } else {
+      console.warn('⚠️ Connect Account ID が未設定');
+    }
+
     // Stripe APIを優先: エラーの場合のみフォールバック
     let totalEarnings: number;
     let pendingPayout: number;
@@ -996,9 +1034,9 @@ app.post('/api/stripe/influencer-earnings', async (req: Request, res: Response) 
       ).reduce((sum, tx) => sum + (tx.influencer_payout || 0), 0);
 
       totalEarnings = totalEarningsFromDB + autoSplitEarnings;
-      pendingPayout = (transactions || []).filter(tx => 
-        tx.stripe_transfer_id === null || tx.stripe_transfer_id === undefined
-      ).reduce((sum, tx) => sum + (tx.influencer_payout || 0), 0);
+      // フォールバック時は、Balance APIから取得したpendingBalanceを使用
+      // （Balance APIが取得できない場合は0）
+      pendingPayout = pendingBalance;
 
       debugInfo = {
         source: 'database',
@@ -1020,7 +1058,8 @@ app.post('/api/stripe/influencer-earnings', async (req: Request, res: Response) 
     } else {
       // Stripeから取得した値を使用（優先）
       totalEarnings = totalEarningsFromStripe;
-      pendingPayout = pendingPayoutFromStripe;
+      // 入金予定額はBalance APIから取得（Balance Transactions APIではなく）
+      pendingPayout = pendingBalance;
       dataSource = 'stripe';
       
       debugInfo = {
@@ -1062,44 +1101,6 @@ app.post('/api/stripe/influencer-earnings', async (req: Request, res: Response) 
 
     const currentMonthEarnings = currentMonthTx.reduce((sum, tx) => sum + (tx.influencer_payout || 0), 0);
     const previousMonthEarnings = previousMonthTx.reduce((sum, tx) => sum + (tx.influencer_payout || 0), 0);
-
-    // Stripeから残高情報を取得（Connect Accountがある場合）
-    let availableBalance = 0;
-    let pendingBalance = 0;
-    let balanceError: string | null = null;
-
-    if (user.stripe_connect_account_id) {
-      try {
-        console.log('🔵 Stripe残高取得開始:', user.stripe_connect_account_id);
-
-        const balance = await stripe.balance.retrieve({
-          // stripeAccountは第2引数のオプションに含める必要がある
-        }, {
-          stripeAccount: user.stripe_connect_account_id,
-        });
-
-        console.log('✅ Stripe残高取得成功:', {
-          available: balance.available,
-          pending: balance.pending,
-          connect_reserved: balance.connect_reserved,
-        });
-
-        availableBalance = balance.available.reduce((sum, b) => sum + b.amount, 0) / 100;
-        pendingBalance = balance.pending.reduce((sum, b) => sum + b.amount, 0) / 100;
-
-        console.log('💰 計算後の残高:', { availableBalance, pendingBalance });
-      } catch (error: any) {
-        console.error('❌ 残高取得エラー:', {
-          message: error.message,
-          type: error.type,
-          code: error.code,
-          statusCode: error.statusCode,
-        });
-        balanceError = error.message;
-      }
-    } else {
-      console.warn('⚠️ Connect Account ID が未設定');
-    }
 
     // 直近5件の取引履歴を整形
     const recentTransactions = (transactions?.slice(0, 5) || []).map(tx => ({

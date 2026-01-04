@@ -221,9 +221,9 @@ export const InfluencerEarningsDashboard: React.FC<Props> = ({ authUserId }) => 
 
           {/* サマリーカード */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
-            {/* 総売上 */}
+            {/* 総落札金額 */}
             <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 sm:p-6 rounded-lg border border-green-200">
-              <div className="text-xs sm:text-sm text-green-700 font-medium mb-1 whitespace-nowrap">総売上（受取額）</div>
+              <div className="text-xs sm:text-sm text-green-700 font-medium mb-1 whitespace-nowrap">総落札金額</div>
               <div className="text-2xl sm:text-3xl font-bold text-green-900 whitespace-nowrap overflow-hidden text-ellipsis">
                 {formatCurrency(earnings.totalEarnings)}
               </div>
@@ -250,7 +250,7 @@ export const InfluencerEarningsDashboard: React.FC<Props> = ({ authUserId }) => 
                 {formatCurrency(earnings.availableBalance)}
               </div>
               <div className="text-xs text-purple-600 mt-2 whitespace-nowrap">
-                Stripe残高（即時出金可能）
+                Stripe総残高（available + pending）
               </div>
             </div>
           </div>
