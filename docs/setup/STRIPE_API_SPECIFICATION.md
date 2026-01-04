@@ -36,7 +36,7 @@ const balance = await stripe.balance.retrieve({}, {
   object: 'balance',
   available: [
     {
-      amount: 10000,        // セント単位（例: 10000 = 100.00円）
+      amount: 10000,        // JPYの場合: 円単位（10000 = 10000円）
       currency: 'jpy',     // 通貨コード
       source_types: {
         card: 10000
@@ -135,15 +135,15 @@ const balanceTransactions = await stripe.balanceTransactions.list({
     {
       id: 'txn_1ABC123...',           // Balance Transaction ID
       object: 'balance_transaction',
-      amount: 10000,                   // セント単位（例: 10000 = 100.00円）
+      amount: 10000,                   // JPYの場合: 円単位（10000 = 10000円）
       available_on: 1609459200,        // 出金可能になる日時（UNIXタイムスタンプ）
       created: 1609372800,             // 作成日時（UNIXタイムスタンプ）
       currency: 'jpy',                 // 通貨コード
       description: 'Transfer from platform',  // 説明
       exchange_rate: null,             // 為替レート（マルチカレンシーの場合）
-      fee: 0,                          // 手数料（セント単位）
+      fee: 0,                          // 手数料（JPYの場合は円単位）
       fee_details: [],                 // 手数料の詳細
-      net: 10000,                       // 手数料を差し引いた金額（セント単位）
+      net: 10000,                       // 手数料を差し引いた金額（JPYの場合は円単位）
       reporting_category: 'charge',    // レポートカテゴリ
       source: 'ch_1ABC123...',         // 関連するCharge IDまたはTransfer ID
       status: 'available',             // ステータス: 'available' | 'pending'
@@ -253,11 +253,23 @@ while (hasMore) {
 
 ### 3.2 金額の単位変換
 
-Stripe APIは金額をセント単位で返します。円単位に変換するには、100で割ります。
+**重要**: JPY（日本円）はzero-decimal currency（ゼロ小数通貨）のため、Stripe APIは金額を円単位で返します。**100で割る必要はありません。**
 
 ```typescript
-const amountInYen = balanceTransaction.amount / 100;
+// JPYの場合（変換不要）
+const amountInYen = balanceTransaction.amount; // 既に円単位
+
+// USDなどの場合（100で割る）
+const amountInDollars = balanceTransaction.amount / 100; // セント単位からドル単位に変換
 ```
+
+**Zero-decimal currencies**（ゼロ小数通貨）:
+- JPY（日本円）
+- KRW（韓国ウォン）
+- VND（ベトナムドン）
+- など
+
+これらの通貨は、最小通貨単位が1であるため、Stripe APIは既に円単位で返します。
 
 ### 3.3 タイムゾーン
 
@@ -301,6 +313,7 @@ const balanceTransactions = await stripe.balanceTransactions.list({
 
 // availableステータスの入金のみを集計
 // 注意: Destination Charges方式の場合、type='payment'が返される
+// JPYはzero-decimal currencyのため、amountは既に円単位（100で割る必要なし）
 const totalEarnings = balanceTransactions.data
   .filter(bt => 
     (bt.type === 'transfer' || bt.type === 'payment') &&
@@ -308,7 +321,7 @@ const totalEarnings = balanceTransactions.data
     bt.currency === 'jpy' &&
     bt.status === 'available'
   )
-  .reduce((sum, bt) => sum + (bt.amount / 100), 0);
+  .reduce((sum, bt) => sum + bt.amount, 0);
 ```
 
 ### 4.2 入金予定額の取得
@@ -323,6 +336,7 @@ const balanceTransactions = await stripe.balanceTransactions.list({
 
 // pendingステータスの入金のみを集計
 // 注意: Destination Charges方式の場合、type='payment'が返される
+// JPYはzero-decimal currencyのため、amountは既に円単位（100で割る必要なし）
 const pendingPayout = balanceTransactions.data
   .filter(bt => 
     (bt.type === 'transfer' || bt.type === 'payment') &&
@@ -330,7 +344,7 @@ const pendingPayout = balanceTransactions.data
     bt.currency === 'jpy' &&
     bt.status === 'pending'
   )
-  .reduce((sum, bt) => sum + (bt.amount / 100), 0);
+  .reduce((sum, bt) => sum + bt.amount, 0);
 ```
 
 ### 4.3 出金可能額の取得
@@ -342,9 +356,10 @@ const balance = await stripe.balance.retrieve({
 });
 
 // availableの合計を計算
+// JPYはzero-decimal currencyのため、amountは既に円単位（100で割る必要なし）
 const availableBalance = balance.available
   .filter(b => b.currency === 'jpy')
-  .reduce((sum, b) => sum + (b.amount / 100), 0);
+  .reduce((sum, b) => sum + b.amount, 0);
 ```
 
 ## 5. 参考リンク
