@@ -837,111 +837,82 @@ app.post('/api/stripe/influencer-earnings', async (req: Request, res: Response) 
       throw txError;
     }
 
-    // Stripeから直接売上データを取得・検証
+    // Stripeから直接売上データを取得（Balance Transactions APIを使用）
     let totalEarningsFromStripe = 0;
     let pendingPayoutFromStripe = 0;
     let stripeEarningsError: string | null = null;
 
-    if (user.stripe_connect_account_id && transactions && transactions.length > 0) {
+    if (user.stripe_connect_account_id) {
       try {
-        console.log('🔵 Stripeから売上データ取得開始:', {
+        console.log('🔵 Stripeから売上データ取得開始（Balance Transactions API使用）:', {
           connectAccountId: user.stripe_connect_account_id,
-          transactionCount: transactions.length,
         });
 
-        // 1. Transfer履歴から総売上を集計（Direct Charges方式）
-        // payment_transactionsに記録されているstripe_transfer_idからTransferを取得
-        const transferIds = transactions
-          .filter(tx => tx.stripe_transfer_id && tx.stripe_transfer_id !== 'auto_split')
-          .map(tx => tx.stripe_transfer_id as string);
+        // Balance Transactions APIからすべての取引履歴を取得
+        // Connect Account側のすべての取引（Transfer、Charge、Application Feeなど）を取得
+        const balanceTransactions = await stripe.balanceTransactions.list({
+          limit: 100,
+        }, {
+          stripeAccount: user.stripe_connect_account_id,
+        });
 
-        if (transferIds.length > 0) {
-          console.log('🔵 Transfer ID一覧:', transferIds);
-          
-          // 各Transfer IDからTransfer情報を取得して集計
-          const transferAmounts = await Promise.all(
-            transferIds.map(async (transferId) => {
-              try {
-                const transfer = await stripe.transfers.retrieve(transferId);
-                if (transfer.currency === 'jpy' && transfer.destination === user.stripe_connect_account_id) {
-                  return transfer.amount / 100; // セント単位から円単位に変換
-                }
-                return 0;
-              } catch (err: any) {
-                console.warn('⚠️ Transfer取得エラー:', transferId, err.message);
-                return 0;
-              }
-            })
-          );
+        console.log('🔵 Balance Transactions取得:', {
+          count: balanceTransactions.data.length,
+          transactions: balanceTransactions.data.map(bt => ({
+            id: bt.id,
+            type: bt.type,
+            amount: bt.amount,
+            currency: bt.currency,
+            status: bt.status,
+            available_on: bt.available_on,
+            created: bt.created,
+            description: bt.description,
+          })),
+        });
 
-          totalEarningsFromStripe = transferAmounts.reduce((sum, amount) => sum + amount, 0);
-          console.log('✅ Transferから集計した総売上:', totalEarningsFromStripe);
-        }
+        // 総売上: Connect Account側に入金されたすべての金額を集計
+        // - Direct Charges方式: type='transfer'（プラットフォームからのTransfer）
+        // - Destination Charges方式: type='charge'（直接Charge、自動分割済み）
+        // 金額が正の値（入金）で、円単位のものを集計
+        totalEarningsFromStripe = balanceTransactions.data
+          .filter(bt => {
+            // TransferまたはChargeで、成功しているもの
+            const isTransferOrCharge = bt.type === 'transfer' || bt.type === 'charge';
+            // 金額が正の値（入金）
+            const isPositive = bt.amount > 0;
+            // 円単位
+            const isJpy = bt.currency === 'jpy';
+            // ステータスがavailableまたはpending（成功している）
+            const isSuccessful = bt.status === 'available' || bt.status === 'pending';
+            return isTransferOrCharge && isPositive && isJpy && isSuccessful;
+          })
+          .reduce((sum, bt) => sum + (bt.amount / 100), 0); // セント単位から円単位に変換
 
-        // 2. Destination Charges方式の自動分割済み金額を集計
-        // payment_transactionsに記録されているstripe_payment_intent_idからPaymentIntentを取得
-        const destinationChargesPaymentIntentIds = transactions
-          .filter(tx => tx.stripe_transfer_id === 'auto_split')
-          .map(tx => tx.stripe_payment_intent_id as string)
-          .filter(id => id !== null && id !== undefined);
+        console.log('✅ Balance Transactionsから集計した総売上:', {
+          totalEarnings: totalEarningsFromStripe,
+          breakdown: {
+            transfers: balanceTransactions.data.filter(bt => bt.type === 'transfer' && bt.amount > 0 && bt.currency === 'jpy').reduce((sum, bt) => sum + (bt.amount / 100), 0),
+            charges: balanceTransactions.data.filter(bt => bt.type === 'charge' && bt.amount > 0 && bt.currency === 'jpy').reduce((sum, bt) => sum + (bt.amount / 100), 0),
+          },
+        });
 
-        if (destinationChargesPaymentIntentIds.length > 0) {
-          console.log('🔵 Destination Charges PaymentIntent ID一覧:', destinationChargesPaymentIntentIds);
-          
-          const destinationChargesAmounts = await Promise.all(
-            destinationChargesPaymentIntentIds.map(async (paymentIntentId) => {
-              try {
-                const pi = await stripe.paymentIntents.retrieve(paymentIntentId);
-                if (pi.status === 'succeeded' && pi.application_fee_amount) {
-                  // 総額からapplication_fee_amountを引いた金額がインフルエンサーへの支払額
-                  const totalAmount = pi.amount / 100;
-                  const applicationFee = pi.application_fee_amount / 100;
-                  return totalAmount - applicationFee;
-                }
-                return 0;
-              } catch (err: any) {
-                console.warn('⚠️ PaymentIntent取得エラー:', paymentIntentId, err.message);
-                return 0;
-              }
-            })
-          );
+        // 入金予定額: Balance Transactionsからpendingステータスのものを集計
+        // Stripeダッシュボードの「入金予定額」に合わせる
+        pendingPayoutFromStripe = balanceTransactions.data
+          .filter(bt => {
+            // TransferまたはChargeで、保留中（pending）のもの
+            const isTransferOrCharge = bt.type === 'transfer' || bt.type === 'charge';
+            // 金額が正の値（入金）
+            const isPositive = bt.amount > 0;
+            // 円単位
+            const isJpy = bt.currency === 'jpy';
+            // ステータスがpending（保留中）
+            const isPending = bt.status === 'pending';
+            return isTransferOrCharge && isPositive && isJpy && isPending;
+          })
+          .reduce((sum, bt) => sum + (bt.amount / 100), 0); // セント単位から円単位に変換
 
-          const destinationChargesEarnings = destinationChargesAmounts.reduce((sum, amount) => sum + amount, 0);
-          totalEarningsFromStripe += destinationChargesEarnings;
-          console.log('✅ Destination Chargesから集計した総売上:', destinationChargesEarnings);
-        }
-
-        // 3. 入金予定額: Capture済みだがTransfer未実施のPaymentIntentを集計
-        const pendingPaymentIntentIds = transactions
-          .filter(tx => !tx.stripe_transfer_id || tx.stripe_transfer_id === null)
-          .map(tx => tx.stripe_payment_intent_id as string)
-          .filter(id => id !== null && id !== undefined);
-
-        if (pendingPaymentIntentIds.length > 0) {
-          console.log('🔵 入金予定額のPaymentIntent ID一覧:', pendingPaymentIntentIds);
-          
-          const pendingAmounts = await Promise.all(
-            pendingPaymentIntentIds.map(async (paymentIntentId) => {
-              try {
-                const pi = await stripe.paymentIntents.retrieve(paymentIntentId);
-                // Destination Charges方式は除外（自動分割済みのため）
-                if (pi.status === 'succeeded' && !pi.application_fee_amount) {
-                  // Direct Charges方式のみ
-                  // payment_transactionsからinfluencer_payoutを取得
-                  const tx = transactions.find(t => t.stripe_payment_intent_id === paymentIntentId);
-                  return tx?.influencer_payout || 0;
-                }
-                return 0;
-              } catch (err: any) {
-                console.warn('⚠️ PaymentIntent取得エラー:', paymentIntentId, err.message);
-                return 0;
-              }
-            })
-          );
-
-          pendingPayoutFromStripe = pendingAmounts.reduce((sum, amount) => sum + amount, 0);
-          console.log('✅ 入金予定額:', pendingPayoutFromStripe);
-        }
+        console.log('✅ Balance Transactionsから集計した入金予定額:', pendingPayoutFromStripe);
 
         console.log('✅ Stripeから売上データ取得完了:', {
           totalEarnings: totalEarningsFromStripe,
