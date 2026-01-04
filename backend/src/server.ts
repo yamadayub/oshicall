@@ -889,6 +889,22 @@ app.post('/api/stripe/influencer-earnings', async (req: Request, res: Response) 
 
         totalEarningsFromStripe = filteredTransactions.reduce((sum, bt) => sum + (bt.amount / 100), 0); // セント単位から円単位に変換
 
+        // デバッグ用: フィルタリング前のすべての取引を詳細にログ出力
+        console.log('🔍 デバッグ: すべてのBalance Transactions:', {
+          totalCount: allTransactions.length,
+          allTransactions: allTransactions.map(bt => ({
+            id: bt.id,
+            type: bt.type,
+            amount: bt.amount,
+            amountInYen: bt.amount / 100,
+            currency: bt.currency,
+            status: bt.status,
+            description: bt.description,
+            available_on: bt.available_on,
+            created: bt.created,
+          })),
+        });
+
         console.log('✅ Balance Transactionsから集計した総売上:', {
           allTransactionsCount: allTransactions.length,
           filteredTransactionsCount: filteredTransactions.length,
@@ -896,6 +912,12 @@ app.post('/api/stripe/influencer-earnings', async (req: Request, res: Response) 
           breakdown: {
             transfers: allTransactions.filter(bt => bt.type === 'transfer' && bt.amount > 0 && bt.currency === 'jpy').reduce((sum, bt) => sum + (bt.amount / 100), 0),
             charges: allTransactions.filter(bt => bt.type === 'charge' && bt.amount > 0 && bt.currency === 'jpy').reduce((sum, bt) => sum + (bt.amount / 100), 0),
+          },
+          filterConditions: {
+            type: 'transfer or charge',
+            amount: '> 0',
+            currency: 'jpy',
+            status: 'available or pending',
           },
           sampleTransactions: filteredTransactions.slice(0, 3).map(bt => ({
             id: bt.id,
