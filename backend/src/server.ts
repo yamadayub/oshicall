@@ -315,21 +315,104 @@ app.post('/api/stripe/authorize-payment', async (req: Request, res: Response) =>
       }
     }
 
-    // 4. PaymentIntentを作成（手動キャプチャ）
-    console.log('🔵 Payment Intent作成:', { amount, currency: 'jpy', paymentMethodId: defaultPaymentMethodId });
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(amount), // 円単位
-      currency: 'jpy',
-      customer: customerId,
-      payment_method: defaultPaymentMethodId as string,
-      capture_method: 'manual', // 手動キャプチャ（与信のみ）
-      confirm: true, // 即座に確認
-      off_session: true, // オフセッション決済
-      metadata: {
-        auction_id: auctionId,
-        user_id: userId,
-      },
+    // 4. オークションからインフルエンサーIDを取得
+    const { data: auction, error: auctionError } = await supabase
+      .from('auctions')
+      .select('call_slots!inner(user_id)')
+      .eq('id', auctionId)
+      .single();
+
+    if (auctionError || !auction) {
+      console.error('❌ オークション取得エラー:', auctionError);
+      throw new Error('オークションが見つかりません');
+    }
+
+    const influencerUserId = (auction.call_slots as any)?.user_id;
+    if (!influencerUserId) {
+      throw new Error('インフルエンサーIDが取得できません');
+    }
+
+    // 5. インフルエンサー情報を取得（ConnectアカウントID、手数料率）
+    const { data: influencer, error: influencerError } = await supabase
+      .from('users')
+      .select('stripe_connect_account_id, stripe_connect_account_status, platform_fee_rate')
+      .eq('id', influencerUserId)
+      .single();
+
+    if (influencerError) {
+      console.error('❌ インフルエンサー情報取得エラー:', influencerError);
+      throw new Error('インフルエンサー情報が取得できません');
+    }
+
+    // 6. PaymentIntentを作成（Destination Charges方式 or Direct Charges方式）
+    console.log('🔵 Payment Intent作成:', { 
+      amount, 
+      currency: 'jpy', 
+      paymentMethodId: defaultPaymentMethodId,
+      influencerUserId,
+      hasConnectAccount: !!influencer?.stripe_connect_account_id,
+      connectAccountStatus: influencer?.stripe_connect_account_status,
+      platformFeeRate: influencer?.platform_fee_rate ?? 0.2,
     });
+
+    let paymentIntent: Stripe.PaymentIntent;
+
+    // Destination Charges方式（オンボーディング完了済みの場合）
+    if (influencer?.stripe_connect_account_id && 
+        influencer.stripe_connect_account_status === 'active') {
+      
+      const platformFeeRate = influencer.platform_fee_rate ?? 0.2; // デフォルト20%
+      const platformFee = Math.round(amount * platformFeeRate);
+
+      console.log('🔵 Destination Charges方式でPaymentIntentを作成:', {
+        connectAccountId: influencer.stripe_connect_account_id,
+        platformFeeRate,
+        platformFee,
+        influencerPayout: amount - platformFee,
+      });
+
+      paymentIntent = await stripe.paymentIntents.create({
+        amount: Math.round(amount), // 円単位
+        currency: 'jpy',
+        customer: customerId,
+        payment_method: defaultPaymentMethodId as string,
+        capture_method: 'manual', // 手動キャプチャ（与信のみ）
+        confirm: true, // 即座に確認
+        off_session: true, // オフセッション決済
+        // Destination Charges用の設定
+        on_behalf_of: influencer.stripe_connect_account_id,
+        application_fee_amount: platformFee,
+        transfer_data: {
+          destination: influencer.stripe_connect_account_id,
+        },
+        metadata: {
+          auction_id: auctionId,
+          user_id: userId,
+          influencer_id: influencerUserId,
+          platform_fee_rate: platformFeeRate.toString(),
+          payment_method: 'destination_charges',
+        },
+      });
+    } else {
+      // フォールバック: Direct Charges方式（オンボーディング未完了の場合）
+      console.log('⚠️ オンボーディング未完了のため、Direct Charges方式でPaymentIntentを作成');
+      
+      paymentIntent = await stripe.paymentIntents.create({
+        amount: Math.round(amount), // 円単位
+        currency: 'jpy',
+        customer: customerId,
+        payment_method: defaultPaymentMethodId as string,
+        capture_method: 'manual', // 手動キャプチャ（与信のみ）
+        confirm: true, // 即座に確認
+        off_session: true, // オフセッション決済
+        metadata: {
+          auction_id: auctionId,
+          user_id: userId,
+          influencer_id: influencerUserId,
+          payment_method: 'direct_charges',
+        },
+      });
+    }
 
     console.log('✅ Payment Intent作成成功:', {
       id: paymentIntent.id,
@@ -712,12 +795,24 @@ app.post('/api/stripe/influencer-earnings', async (req: Request, res: Response) 
 
     // 集計計算
     // Transfer済み（総売上）
-    const totalEarnings = transactions?.filter(tx => tx.stripe_transfer_id !== null)
-      .reduce((sum, tx) => sum + (tx.influencer_payout || 0), 0) || 0;
-    
+    // Destination Charges方式: stripe_transfer_id = 'auto_split'
+    // Direct Charges方式: stripe_transfer_id = 'tr_xxxxx'
+    const totalEarnings = transactions?.filter(tx => 
+      tx.stripe_transfer_id !== null && tx.stripe_transfer_id !== 'auto_split'
+    ).reduce((sum, tx) => sum + (tx.influencer_payout || 0), 0) || 0;
+
+    // 自動分割済み（Destination Charges方式）も総売上に含める
+    const autoSplitEarnings = transactions?.filter(tx => 
+      tx.stripe_transfer_id === 'auto_split'
+    ).reduce((sum, tx) => sum + (tx.influencer_payout || 0), 0) || 0;
+
+    const totalEarningsWithAutoSplit = totalEarnings + autoSplitEarnings;
+
     // Transfer未実施（入金予定額）
-    const pendingPayout = transactions?.filter(tx => tx.stripe_transfer_id === null)
-      .reduce((sum, tx) => sum + (tx.influencer_payout || 0), 0) || 0;
+    // Direct Charges方式のみ（Destination Charges方式は自動分割済みのため除外）
+    const pendingPayout = transactions?.filter(tx => 
+      tx.stripe_transfer_id === null
+    ).reduce((sum, tx) => sum + (tx.influencer_payout || 0), 0) || 0;
     
     const totalCallCount = transactions?.length || 0;
 
@@ -726,13 +821,20 @@ app.post('/api/stripe/influencer-earnings', async (req: Request, res: Response) 
     const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 
-    const currentMonthTx = transactions?.filter(tx =>
-      new Date(tx.created_at) >= currentMonthStart && tx.stripe_transfer_id !== null
-    ) || [];
+    const currentMonthTx = transactions?.filter(tx => {
+      const txDate = new Date(tx.created_at);
+      const isCurrentMonth = txDate >= currentMonthStart;
+      const isTransferred = tx.stripe_transfer_id !== null && tx.stripe_transfer_id !== 'auto_split';
+      const isAutoSplit = tx.stripe_transfer_id === 'auto_split';
+      return isCurrentMonth && (isTransferred || isAutoSplit);
+    }) || [];
 
     const previousMonthTx = transactions?.filter(tx => {
       const txDate = new Date(tx.created_at);
-      return txDate >= previousMonthStart && txDate < currentMonthStart && tx.stripe_transfer_id !== null;
+      const isPreviousMonth = txDate >= previousMonthStart && txDate < currentMonthStart;
+      const isTransferred = tx.stripe_transfer_id !== null && tx.stripe_transfer_id !== 'auto_split';
+      const isAutoSplit = tx.stripe_transfer_id === 'auto_split';
+      return isPreviousMonth && (isTransferred || isAutoSplit);
     }) || [];
 
     const currentMonthEarnings = currentMonthTx.reduce((sum, tx) => sum + (tx.influencer_payout || 0), 0);
@@ -786,8 +888,8 @@ app.post('/api/stripe/influencer-earnings', async (req: Request, res: Response) 
     }));
 
     res.json({
-      totalEarnings,      // Transfer済み（総売上）
-      pendingPayout,      // Capture済み、Transfer未実施（入金予定額）
+      totalEarnings: totalEarningsWithAutoSplit,  // Transfer済み + 自動分割済み（総売上）
+      pendingPayout,      // Capture済み、Transfer未実施（入金予定額、Direct Charges方式のみ）
       availableBalance,   // Stripe残高（参考情報）
       pendingBalance,     // Stripe保留中（参考情報）
       recentTransactions,
@@ -1073,6 +1175,19 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
         // 決済成功時の処理
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
         console.log('🔵 PaymentIntent成功:', paymentIntent.id);
+        
+        // Destination Charges方式の場合、Transfer処理は不要（自動分割済み）
+        if (paymentIntent.application_fee_amount) {
+          console.log('✅ Destination Charges方式: 自動分割入金済み（Transfer処理不要）', {
+            paymentIntentId: paymentIntent.id,
+            applicationFeeAmount: paymentIntent.application_fee_amount,
+          });
+          // payment_transactionsの記録はCapture処理で既に完了
+          break;
+        }
+        
+        // Direct Charges方式の場合、Transfer処理を実行
+        console.log('🔵 Direct Charges方式: Transfer処理を実行');
         
         // Transfer未実施のpayment_transactionsを検索
         const { data: paymentTx, error: txError } = await supabase

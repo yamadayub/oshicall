@@ -427,8 +427,19 @@ export async function captureTalkPayment(
       console.log('✅ 決済確定成功:', capturedPayment.id);
     }
 
-    // 4. プラットフォーム手数料計算（20%）
-    const platformFee = Math.round(bidAmount * 0.2);
+    // 4. プラットフォーム手数料計算
+    // Destination Charges方式の場合、application_fee_amountから手数料を取得
+    // Direct Charges方式の場合、デフォルト20%を使用
+    let platformFee: number;
+    if (capturedPayment.application_fee_amount) {
+      // Destination Charges方式: application_fee_amountはセント単位なので円単位に変換
+      platformFee = capturedPayment.application_fee_amount / 100;
+      console.log('🔵 Destination Charges方式: application_fee_amountから手数料を取得:', platformFee);
+    } else {
+      // Direct Charges方式: デフォルト20%
+      platformFee = Math.round(bidAmount * 0.2);
+      console.log('🔵 Direct Charges方式: デフォルト手数料率20%を使用:', platformFee);
+    }
     const influencerPayout = bidAmount - platformFee;
 
     // 5. payment_transactionsに記録（既に存在する場合はスキップ）
@@ -473,9 +484,13 @@ export async function captureTalkPayment(
     }
 
     // 5.5 インフルエンサーへの送金（Stripe Connect）
-    // 注意: Transfer処理はStripe Webhook（payment_intent.succeeded）で実行する
-    // CaptureとTransferを分離することで、プラットフォームアカウントへの入金確認後に送金される
-    console.log('ℹ️ Transfer処理はStripe Webhook（payment_intent.succeeded）で実行されます');
+    // Destination Charges方式の場合: Transfer処理は不要（自動分割済み）
+    // Direct Charges方式の場合: Transfer処理はStripe Webhook（payment_intent.succeeded）で実行する
+    if (capturedPayment.application_fee_amount) {
+      console.log('✅ Destination Charges方式: 自動分割入金済み（Transfer処理不要）');
+    } else {
+      console.log('ℹ️ Direct Charges方式: Transfer処理はStripe Webhook（payment_intent.succeeded）で実行されます');
+    }
 
     // 6. purchased_slotsのステータスを更新
     await supabase
