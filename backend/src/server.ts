@@ -872,19 +872,20 @@ app.post('/api/stripe/influencer-earnings', async (req: Request, res: Response) 
 
         // 総売上: Connect Account側に入金されたすべての金額を集計
         // - Direct Charges方式: type='transfer'（プラットフォームからのTransfer）
-        // - Destination Charges方式: type='charge'（直接Charge、自動分割済み）
+        // - Destination Charges方式: type='payment'（直接Charge、自動分割済み）
         // 金額が正の値（入金）で、円単位のものを集計
         const allTransactions = balanceTransactions.data || [];
         const filteredTransactions = allTransactions.filter(bt => {
-          // TransferまたはChargeで、成功しているもの
-          const isTransferOrCharge = bt.type === 'transfer' || bt.type === 'charge';
+          // Transfer、Charge、Paymentで、成功しているもの
+          // 注意: Destination Charges方式の場合、type='payment'が返される
+          const isTransferChargeOrPayment = bt.type === 'transfer' || bt.type === 'charge' || bt.type === 'payment';
           // 金額が正の値（入金）
           const isPositive = bt.amount > 0;
           // 円単位
           const isJpy = bt.currency === 'jpy';
           // ステータスがavailableまたはpending（成功している）
           const isSuccessful = bt.status === 'available' || bt.status === 'pending';
-          return isTransferOrCharge && isPositive && isJpy && isSuccessful;
+          return isTransferChargeOrPayment && isPositive && isJpy && isSuccessful;
         });
 
         totalEarningsFromStripe = filteredTransactions.reduce((sum, bt) => sum + (bt.amount / 100), 0); // セント単位から円単位に変換
@@ -912,9 +913,10 @@ app.post('/api/stripe/influencer-earnings', async (req: Request, res: Response) 
           breakdown: {
             transfers: allTransactions.filter(bt => bt.type === 'transfer' && bt.amount > 0 && bt.currency === 'jpy').reduce((sum, bt) => sum + (bt.amount / 100), 0),
             charges: allTransactions.filter(bt => bt.type === 'charge' && bt.amount > 0 && bt.currency === 'jpy').reduce((sum, bt) => sum + (bt.amount / 100), 0),
+            payments: allTransactions.filter(bt => bt.type === 'payment' && bt.amount > 0 && bt.currency === 'jpy').reduce((sum, bt) => sum + (bt.amount / 100), 0),
           },
           filterConditions: {
-            type: 'transfer or charge',
+            type: 'transfer or charge or payment',
             amount: '> 0',
             currency: 'jpy',
             status: 'available or pending',
@@ -932,15 +934,16 @@ app.post('/api/stripe/influencer-earnings', async (req: Request, res: Response) 
         // Stripeダッシュボードの「入金予定額」に合わせる
         pendingPayoutFromStripe = balanceTransactions.data
           .filter(bt => {
-            // TransferまたはChargeで、保留中（pending）のもの
-            const isTransferOrCharge = bt.type === 'transfer' || bt.type === 'charge';
+            // Transfer、Charge、Paymentで、保留中（pending）のもの
+            // 注意: Destination Charges方式の場合、type='payment'が返される
+            const isTransferChargeOrPayment = bt.type === 'transfer' || bt.type === 'charge' || bt.type === 'payment';
             // 金額が正の値（入金）
             const isPositive = bt.amount > 0;
             // 円単位
             const isJpy = bt.currency === 'jpy';
             // ステータスがpending（保留中）
             const isPending = bt.status === 'pending';
-            return isTransferOrCharge && isPositive && isJpy && isPending;
+            return isTransferChargeOrPayment && isPositive && isJpy && isPending;
           })
           .reduce((sum, bt) => sum + (bt.amount / 100), 0); // セント単位から円単位に変換
 

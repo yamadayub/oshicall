@@ -161,14 +161,17 @@ const balanceTransactions = await stripe.balanceTransactions.list({
 
 Connect Accountで使用される主要なタイプ:
 
-- **`charge`**: 直接Charge（Destination Charges方式の場合）
+- **`payment`**: 直接Charge（Destination Charges方式の場合）**注意: `charge`ではなく`payment`が返される**
 - **`transfer`**: プラットフォームからのTransfer（Direct Charges方式の場合）
+- **`charge`**: Charge（プラットフォーム側で使用）
 - **`application_fee`**: プラットフォーム手数料（プラットフォーム側に記録される）
 - **`refund`**: 返金
 - **`adjustment`**: 調整
 - **`payout`**: 出金
 - **`payout_failure`**: 出金失敗
 - **`payout_cancel`**: 出金キャンセル
+
+**重要**: Connect AccountのBalance Transactions APIでは、Destination Charges方式の場合、`type: 'payment'`が返されます（`type: 'charge'`ではありません）。
 
 #### `status`（ステータス）
 
@@ -187,14 +190,15 @@ Connect Accountで使用される主要なタイプ:
 #### 総売上の計算
 
 ```typescript
-// すべての入金（transfer + charge）を集計
+// すべての入金（transfer + payment）を集計
+// 注意: Destination Charges方式の場合、type='payment'が返される
 const totalEarnings = balanceTransactions.data
   .filter(bt => {
-    const isTransferOrCharge = bt.type === 'transfer' || bt.type === 'charge';
+    const isTransferOrPayment = bt.type === 'transfer' || bt.type === 'payment';
     const isPositive = bt.amount > 0;  // 入金のみ
     const isJpy = bt.currency === 'jpy';
     const isAvailable = bt.status === 'available';  // 確定済みのみ
-    return isTransferOrCharge && isPositive && isJpy && isAvailable;
+    return isTransferOrPayment && isPositive && isJpy && isAvailable;
   })
   .reduce((sum, bt) => sum + (bt.amount / 100), 0);
 ```
@@ -203,13 +207,14 @@ const totalEarnings = balanceTransactions.data
 
 ```typescript
 // pendingステータスの入金を集計
+// 注意: Destination Charges方式の場合、type='payment'が返される
 const pendingPayout = balanceTransactions.data
   .filter(bt => {
-    const isTransferOrCharge = bt.type === 'transfer' || bt.type === 'charge';
+    const isTransferOrPayment = bt.type === 'transfer' || bt.type === 'payment';
     const isPositive = bt.amount > 0;
     const isJpy = bt.currency === 'jpy';
     const isPending = bt.status === 'pending';  // 保留中のみ
-    return isTransferOrCharge && isPositive && isJpy && isPending;
+    return isTransferOrPayment && isPositive && isJpy && isPending;
   })
   .reduce((sum, bt) => sum + (bt.amount / 100), 0);
 ```
@@ -295,9 +300,10 @@ const balanceTransactions = await stripe.balanceTransactions.list({
 });
 
 // availableステータスの入金のみを集計
+// 注意: Destination Charges方式の場合、type='payment'が返される
 const totalEarnings = balanceTransactions.data
   .filter(bt => 
-    (bt.type === 'transfer' || bt.type === 'charge') &&
+    (bt.type === 'transfer' || bt.type === 'payment') &&
     bt.amount > 0 &&
     bt.currency === 'jpy' &&
     bt.status === 'available'
@@ -316,9 +322,10 @@ const balanceTransactions = await stripe.balanceTransactions.list({
 });
 
 // pendingステータスの入金のみを集計
+// 注意: Destination Charges方式の場合、type='payment'が返される
 const pendingPayout = balanceTransactions.data
   .filter(bt => 
-    (bt.type === 'transfer' || bt.type === 'charge') &&
+    (bt.type === 'transfer' || bt.type === 'payment') &&
     bt.amount > 0 &&
     bt.currency === 'jpy' &&
     bt.status === 'pending'
