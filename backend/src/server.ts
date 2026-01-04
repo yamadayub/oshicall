@@ -1096,10 +1096,10 @@ app.post('/api/stripe/influencer-earnings', async (req: Request, res: Response) 
     }));
 
     res.json({
-      totalEarnings,      // 総売上（Stripe API優先、エラー時はDBから）
-      pendingPayout,      // 入金予定額（Stripe API優先、エラー時はDBから）
-      availableBalance,   // Stripe残高（出金可能額）
-      pendingBalance,     // Stripe保留中（参考情報）
+      totalEarnings,      // 総落札金額（Balance Transactions APIから集計）
+      pendingPayout,      // 入金予定額（Balance APIのpendingBalance）
+      availableBalance: availableBalance + pendingBalance,   // Stripe総残高（available + pending）
+      pendingBalance,     // Stripe保留中（参考情報、単独でも使用）
       recentTransactions,
       monthlyStats: {
         currentMonth: {
