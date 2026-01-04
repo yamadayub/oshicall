@@ -47,6 +47,6 @@ else
   echo ""
   echo "⚠️  注意: capabilityが'active'になるまで時間がかかる場合があります"
   echo "   状態を確認するには以下のコマンドを実行してください:"
-  echo "   curl https://api.stripe.com/v1/accounts/$CONNECT_ACCOUNT_ID -u $STRIPE_SECRET_KEY: | python3 -m json.tool | grep -A 5 capabilities"
+  echo "   curl https://api.stripe.com/v1/accounts/$CONNECT_ACCOUNT_ID -u \$STRIPE_SECRET_KEY: | python3 -m json.tool | grep -A 5 capabilities"
 fi
 
