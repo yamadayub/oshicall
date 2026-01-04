@@ -839,24 +839,26 @@ app.post('/api/stripe/influencer-earnings', async (req: Request, res: Response) 
 
     // 集計計算
     // Transfer済み（総売上）
-    // Destination Charges方式: stripe_transfer_id = 'auto_split'
-    // Direct Charges方式: stripe_transfer_id = 'tr_xxxxx'
-    const totalEarnings = transactions?.filter(tx => 
-      tx.stripe_transfer_id !== null && tx.stripe_transfer_id !== 'auto_split'
-    ).reduce((sum, tx) => sum + (tx.influencer_payout || 0), 0) || 0;
+    // Destination Charges方式: stripe_transfer_id = 'auto_split'（自動分割済み）
+    // Direct Charges方式: stripe_transfer_id = 'tr_xxxxx'（Transfer済み）
+    const totalEarnings = (transactions || []).filter(tx => 
+      tx.stripe_transfer_id !== null && 
+      tx.stripe_transfer_id !== undefined &&
+      tx.stripe_transfer_id !== 'auto_split'
+    ).reduce((sum, tx) => sum + (tx.influencer_payout || 0), 0);
 
     // 自動分割済み（Destination Charges方式）も総売上に含める
-    const autoSplitEarnings = transactions?.filter(tx => 
+    const autoSplitEarnings = (transactions || []).filter(tx => 
       tx.stripe_transfer_id === 'auto_split'
-    ).reduce((sum, tx) => sum + (tx.influencer_payout || 0), 0) || 0;
+    ).reduce((sum, tx) => sum + (tx.influencer_payout || 0), 0);
 
     const totalEarningsWithAutoSplit = totalEarnings + autoSplitEarnings;
 
     // Transfer未実施（入金予定額）
     // Direct Charges方式のみ（Destination Charges方式は自動分割済みのため除外）
-    const pendingPayout = transactions?.filter(tx => 
-      tx.stripe_transfer_id === null
-    ).reduce((sum, tx) => sum + (tx.influencer_payout || 0), 0) || 0;
+    const pendingPayout = (transactions || []).filter(tx => 
+      tx.stripe_transfer_id === null || tx.stripe_transfer_id === undefined
+    ).reduce((sum, tx) => sum + (tx.influencer_payout || 0), 0);
     
     const totalCallCount = transactions?.length || 0;
 
@@ -1580,17 +1582,20 @@ app.post('/api/auctions/finalize-ended', async (req: Request, res: Response) => 
 
         console.log(`✅ purchased_slots記録成功: ${purchasedSlot.id}（決済は保留）`);
 
-        // call_slots.statusを'live'に更新
+        // call_slots.statusを'live'に更新、fan_user_idも更新（ファンのTalkPageに表示されるように）
         const { error: statusUpdateError } = await supabase
           .from('call_slots')
-          .update({ status: 'live' })
+          .update({ 
+            status: 'live',
+            fan_user_id: highestBid.user_id  // ファンのTalkPageに表示されるように更新
+          })
           .eq('id', auction.call_slot_id);
 
         if (statusUpdateError) {
-          console.error('❌ call_slots.status更新エラー:', statusUpdateError);
+          console.error('❌ call_slots更新エラー:', statusUpdateError);
           // エラーでも続行（purchased_slotsの作成は成功している）
         } else {
-          console.log(`✅ call_slots.status更新成功: ${auction.call_slot_id} → 'live'`);
+          console.log(`✅ call_slots更新成功: ${auction.call_slot_id} → status: 'live', fan_user_id: ${highestBid.user_id}`);
         }
 
         // 5. オークションを終了状態に更新

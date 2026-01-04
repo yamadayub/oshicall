@@ -225,14 +225,14 @@ export const InfluencerEarningsDashboard: React.FC<Props> = ({ authUserId }) => 
               </div>
             </div>
 
-            {/* 入金可能額 */}
+            {/* 出金可能額 */}
             <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 sm:p-6 rounded-lg border border-purple-200">
-              <div className="text-xs sm:text-sm text-purple-700 font-medium mb-1 whitespace-nowrap">入金可能額</div>
+              <div className="text-xs sm:text-sm text-purple-700 font-medium mb-1 whitespace-nowrap">出金可能額</div>
               <div className="text-2xl sm:text-3xl font-bold text-purple-900 whitespace-nowrap overflow-hidden text-ellipsis">
                 {formatCurrency(earnings.availableBalance)}
               </div>
               <div className="text-xs text-purple-600 mt-2 whitespace-nowrap">
-                即時出金可能
+                Stripe残高（即時出金可能）
               </div>
             </div>
           </div>
