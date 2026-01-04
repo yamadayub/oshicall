@@ -358,20 +358,62 @@ app.post('/api/stripe/authorize-payment', async (req: Request, res: Response) =>
     let paymentIntent: Stripe.PaymentIntent;
 
     // Destination Charges方式（オンボーディング完了済みの場合）
+    // 注意: card_payments capabilityがactiveである必要がある
     if (influencer?.stripe_connect_account_id && 
         influencer.stripe_connect_account_status === 'active') {
       
-      const platformFeeRate = influencer.platform_fee_rate ?? 0.2; // デフォルト20%
-      const platformFee = Math.round(amount * platformFeeRate);
-
-      console.log('🔵 Destination Charges方式でPaymentIntentを作成:', {
+      // Connectアカウントのcapabilitiesを確認
+      const stripeAccount = await stripe.accounts.retrieve(influencer.stripe_connect_account_id);
+      const hasCardPayments = stripeAccount.capabilities?.card_payments === 'active';
+      const hasTransfers = stripeAccount.capabilities?.transfers === 'active';
+      
+      console.log('🔵 Connectアカウントcapabilities確認:', {
         connectAccountId: influencer.stripe_connect_account_id,
-        platformFeeRate,
-        platformFee,
-        influencerPayout: amount - platformFee,
+        card_payments: stripeAccount.capabilities?.card_payments,
+        transfers: stripeAccount.capabilities?.transfers,
+        charges_enabled: stripeAccount.charges_enabled,
+        payouts_enabled: stripeAccount.payouts_enabled,
       });
 
-      paymentIntent = await stripe.paymentIntents.create({
+      // card_payments capabilityがactiveでない場合はDirect Charges方式にフォールバック
+      if (!hasCardPayments || !hasTransfers || !stripeAccount.charges_enabled || !stripeAccount.payouts_enabled) {
+        console.warn('⚠️ card_payments capabilityがactiveでないため、Direct Charges方式にフォールバック:', {
+          hasCardPayments,
+          hasTransfers,
+          charges_enabled: stripeAccount.charges_enabled,
+          payouts_enabled: stripeAccount.payouts_enabled,
+        });
+        
+        // Direct Charges方式でPaymentIntentを作成
+        paymentIntent = await stripe.paymentIntents.create({
+          amount: Math.round(amount), // 円単位
+          currency: 'jpy',
+          customer: customerId,
+          payment_method: defaultPaymentMethodId as string,
+          capture_method: 'manual', // 手動キャプチャ（与信のみ）
+          confirm: true, // 即座に確認
+          off_session: true, // オフセッション決済
+          metadata: {
+            auction_id: auctionId,
+            user_id: userId,
+            influencer_id: influencerUserId,
+            payment_method: 'direct_charges',
+            fallback_reason: 'card_payments_capability_not_active',
+          },
+        });
+      } else {
+        // Destination Charges方式でPaymentIntentを作成
+        const platformFeeRate = influencer.platform_fee_rate ?? 0.2; // デフォルト20%
+        const platformFee = Math.round(amount * platformFeeRate);
+
+        console.log('🔵 Destination Charges方式でPaymentIntentを作成:', {
+          connectAccountId: influencer.stripe_connect_account_id,
+          platformFeeRate,
+          platformFee,
+          influencerPayout: amount - platformFee,
+        });
+
+        paymentIntent = await stripe.paymentIntents.create({
         amount: Math.round(amount), // 円単位
         currency: 'jpy',
         customer: customerId,
@@ -708,6 +750,7 @@ app.post('/api/stripe/create-connect-account', async (req: Request, res: Respons
       },
       capabilities: {
         transfers: { requested: true },
+        card_payments: { requested: true }, // Destination Charges方式に必要
       },
       metadata: {
         auth_user_id: authUserId,
@@ -1005,6 +1048,7 @@ app.post('/api/stripe/create-or-resume-onboarding', async (req: Request, res: Re
         },
         capabilities: {
           transfers: { requested: true },
+          card_payments: { requested: true }, // Destination Charges方式に必要
         },
         metadata: {
           auth_user_id: authUserId,
@@ -1026,6 +1070,23 @@ app.post('/api/stripe/create-or-resume-onboarding', async (req: Request, res: Re
 
     // 既存アカウントの状態を確認
     const stripeAccount = await stripe.accounts.retrieve(accountId);
+
+    // card_payments capabilityがリクエストされていない場合はリクエスト
+    if (stripeAccount.capabilities?.card_payments !== 'active' && 
+        stripeAccount.capabilities?.card_payments !== 'pending') {
+      console.log('🔵 card_payments capabilityをリクエスト中...');
+      try {
+        await stripe.accounts.update(accountId, {
+          capabilities: {
+            card_payments: { requested: true },
+          },
+        });
+        console.log('✅ card_payments capabilityのリクエストが成功しました');
+      } catch (capabilityError: any) {
+        console.warn('⚠️ card_payments capabilityのリクエストに失敗しました:', capabilityError.message);
+        // エラーでも続行（オンボーディングリンクを返す）
+      }
+    }
 
     // 完了済みの場合はダッシュボードリンクを返す
     if (stripeAccount.charges_enabled && stripeAccount.payouts_enabled) {
@@ -1108,7 +1169,8 @@ app.post('/api/stripe/influencer-status', async (req: Request, res: Response) =>
       id: stripeAccount.id,
       charges_enabled: stripeAccount.charges_enabled,
       payouts_enabled: stripeAccount.payouts_enabled,
-      details_submitted: stripeAccount.details_submitted
+      details_submitted: stripeAccount.details_submitted,
+      capabilities: stripeAccount.capabilities, // capabilitiesを確認
     });
 
     let accountStatus = 'pending';
@@ -1148,7 +1210,13 @@ app.post('/api/stripe/influencer-status', async (req: Request, res: Response) =>
       isVerified: stripeAccount.charges_enabled && stripeAccount.payouts_enabled,
       chargesEnabled: stripeAccount.charges_enabled,
       payoutsEnabled: stripeAccount.payouts_enabled,
-      detailsSubmitted: stripeAccount.details_submitted
+      detailsSubmitted: stripeAccount.details_submitted,
+      capabilities: stripeAccount.capabilities, // capabilitiesを返す
+      canUseDestinationCharges: 
+        stripeAccount.capabilities?.card_payments === 'active' &&
+        stripeAccount.capabilities?.transfers === 'active' &&
+        stripeAccount.charges_enabled === true &&
+        stripeAccount.payouts_enabled === true,
     });
 
   } catch (error: any) {
