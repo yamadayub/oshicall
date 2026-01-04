@@ -940,16 +940,14 @@ app.post('/api/stripe/influencer-earnings', async (req: Request, res: Response) 
       }
     }
 
-    // Stripeから取得できた場合はそれを使用、できなかった場合はpayment_transactionsから集計
+    // Stripe APIを優先: エラーの場合のみフォールバック
     let totalEarnings: number;
     let pendingPayout: number;
+    let dataSource: 'stripe' | 'database' = 'stripe';
+    let debugInfo: any = null;
 
-    // フォールバック条件: エラーがある、Connect Account IDがない、取引データがない、またはStripeから取得したデータが0で取引データがある場合
-    const shouldUseFallback = stripeEarningsError || 
-                               !user.stripe_connect_account_id || 
-                               !transactions || 
-                               transactions.length === 0 ||
-                               (totalEarningsFromStripe === 0 && pendingPayoutFromStripe === 0 && transactions.length > 0);
+    // フォールバック条件: エラーがある、またはConnect Account IDがない場合のみ
+    const shouldUseFallback = stripeEarningsError || !user.stripe_connect_account_id;
 
     if (shouldUseFallback) {
       // フォールバック: payment_transactionsから集計
@@ -957,9 +955,9 @@ app.post('/api/stripe/influencer-earnings', async (req: Request, res: Response) 
         stripeEarningsError,
         hasConnectAccountId: !!user.stripe_connect_account_id,
         transactionsCount: transactions?.length || 0,
-        totalEarningsFromStripe,
-        pendingPayoutFromStripe,
       });
+      
+      dataSource = 'database';
       
       const totalEarningsFromDB = (transactions || []).filter(tx => 
         tx.stripe_transfer_id !== null && 
@@ -976,6 +974,15 @@ app.post('/api/stripe/influencer-earnings', async (req: Request, res: Response) 
         tx.stripe_transfer_id === null || tx.stripe_transfer_id === undefined
       ).reduce((sum, tx) => sum + (tx.influencer_payout || 0), 0);
 
+      debugInfo = {
+        source: 'database',
+        transactionsCount: transactions?.length || 0,
+        breakdown: {
+          transferEarnings: totalEarningsFromDB,
+          autoSplitEarnings,
+        },
+      };
+
       console.log('✅ payment_transactionsから集計完了:', {
         totalEarnings,
         pendingPayout,
@@ -985,10 +992,23 @@ app.post('/api/stripe/influencer-earnings', async (req: Request, res: Response) 
         },
       });
     } else {
-      // Stripeから取得した値を使用
+      // Stripeから取得した値を使用（優先）
       totalEarnings = totalEarningsFromStripe;
       pendingPayout = pendingPayoutFromStripe;
-      console.log('✅ Stripeから取得した値を使用:', { totalEarnings, pendingPayout });
+      dataSource = 'stripe';
+      
+      debugInfo = {
+        source: 'stripe',
+        totalEarningsFromStripe,
+        pendingPayoutFromStripe,
+        connectAccountId: user.stripe_connect_account_id,
+      };
+
+      console.log('✅ Stripeから取得した値を使用（優先）:', { 
+        totalEarnings, 
+        pendingPayout,
+        connectAccountId: user.stripe_connect_account_id,
+      });
     }
     
     const totalCallCount = transactions?.length || 0;
@@ -1027,6 +1047,8 @@ app.post('/api/stripe/influencer-earnings', async (req: Request, res: Response) 
         console.log('🔵 Stripe残高取得開始:', user.stripe_connect_account_id);
 
         const balance = await stripe.balance.retrieve({
+          // stripeAccountは第2引数のオプションに含める必要がある
+        }, {
           stripeAccount: user.stripe_connect_account_id,
         });
 
@@ -1065,8 +1087,8 @@ app.post('/api/stripe/influencer-earnings', async (req: Request, res: Response) 
     }));
 
     res.json({
-      totalEarnings,      // Stripeから取得した総売上（Transfer済み + 自動分割済み）
-      pendingPayout,      // Stripeから取得した入金予定額（Capture済み、Transfer未実施）
+      totalEarnings,      // 総売上（Stripe API優先、エラー時はDBから）
+      pendingPayout,      // 入金予定額（Stripe API優先、エラー時はDBから）
       availableBalance,   // Stripe残高（出金可能額）
       pendingBalance,     // Stripe保留中（参考情報）
       recentTransactions,
@@ -1084,6 +1106,8 @@ app.post('/api/stripe/influencer-earnings', async (req: Request, res: Response) 
       totalCallCount,
       balanceError, // 残高取得エラーがあれば含める
       stripeEarningsError, // Stripe売上データ取得エラーがあれば含める
+      dataSource, // データソース: 'stripe' または 'database'
+      debugInfo, // デバッグ情報（開発環境用）
     });
 
   } catch (error: any) {

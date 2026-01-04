@@ -3,9 +3,9 @@ import React, { useEffect, useState } from 'react';
 import { getInfluencerEarnings, createStripeDashboardLink } from '../api/stripe';
 
 interface EarningsData {
-  totalEarnings: number;      // Transfer済み（総売上）
-  pendingPayout: number;      // Capture済み、Transfer未実施（入金予定額）
-  availableBalance: number;   // Stripe残高（参考情報）
+  totalEarnings: number;      // 総売上（Stripe API優先）
+  pendingPayout: number;      // 入金予定額（Stripe API優先）
+  availableBalance: number;   // Stripe残高（出金可能額）
   pendingBalance: number;     // Stripe保留中（参考情報）
   recentTransactions: Array<{
     id: string;
@@ -29,6 +29,9 @@ interface EarningsData {
   };
   totalCallCount: number;
   balanceError?: string | null;
+  stripeEarningsError?: string | null;
+  dataSource?: 'stripe' | 'database'; // データソース
+  debugInfo?: any; // デバッグ情報
 }
 
 interface Props {
@@ -51,9 +54,24 @@ export const InfluencerEarningsDashboard: React.FC<Props> = ({ authUserId }) => 
       setIsLoading(true);
       setError('');
       const data = await getInfluencerEarnings(authUserId);
+      
+      // ブラウザのコンソールに取得したデータを表示
+      console.log('💰 売上データ取得完了:', {
+        dataSource: data.dataSource || 'unknown',
+        totalEarnings: data.totalEarnings,
+        pendingPayout: data.pendingPayout,
+        availableBalance: data.availableBalance,
+        pendingBalance: data.pendingBalance,
+        totalCallCount: data.totalCallCount,
+        monthlyStats: data.monthlyStats,
+        debugInfo: data.debugInfo,
+        balanceError: data.balanceError,
+        stripeEarningsError: data.stripeEarningsError,
+      });
+      
       setEarnings(data);
     } catch (err: any) {
-      console.error('売上データ取得エラー:', err);
+      console.error('❌ 売上データ取得エラー:', err);
       setError(err.message || '売上データの取得に失敗しました');
     } finally {
       setIsLoading(false);
