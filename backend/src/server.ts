@@ -1242,102 +1242,27 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
     switch (event.type) {
       case 'payment_intent.succeeded':
         // 決済成功時の処理
+        // 注意: Transfer処理はCapture時に実行済みのため、Webhookではスキップ
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
-        console.log('🔵 PaymentIntent成功:', paymentIntent.id);
+        console.log('🔵 PaymentIntent成功（Webhook受信）:', paymentIntent.id);
         
-        // Destination Charges方式の場合、Transfer処理は不要（自動分割済み）
-        if (paymentIntent.application_fee_amount) {
-          console.log('✅ Destination Charges方式: 自動分割入金済み（Transfer処理不要）', {
-            paymentIntentId: paymentIntent.id,
-            applicationFeeAmount: paymentIntent.application_fee_amount,
-          });
-          // payment_transactionsの記録はCapture処理で既に完了
-          break;
-        }
-        
-        // Direct Charges方式の場合、Transfer処理を実行
-        console.log('🔵 Direct Charges方式: Transfer処理を実行');
-        
-        // Transfer未実施のpayment_transactionsを検索
-        const { data: paymentTx, error: txError } = await supabase
+        // payment_transactionsの状態を確認（ログ用）
+        const { data: paymentTx } = await supabase
           .from('payment_transactions')
-          .select(`
-            *,
-            purchased_slots!inner (
-              influencer_user_id,
-              auction_id
-            )
-          `)
+          .select('stripe_transfer_id')
           .eq('stripe_payment_intent_id', paymentIntent.id)
-          .is('stripe_transfer_id', null) // Transfer未実施のもの
-          .single();
+          .maybeSingle();
 
-        if (txError) {
-          console.error('❌ payment_transactions取得エラー:', txError);
-          // エラーでも続行（既にTransfer済みの可能性がある）
-        } else if (paymentTx && paymentTx.purchased_slots?.influencer_user_id) {
-          const influencerUserId = Array.isArray(paymentTx.purchased_slots)
-            ? paymentTx.purchased_slots[0].influencer_user_id
-            : paymentTx.purchased_slots.influencer_user_id;
-
-          const auctionId = Array.isArray(paymentTx.purchased_slots)
-            ? paymentTx.purchased_slots[0].auction_id
-            : paymentTx.purchased_slots.auction_id;
-
-          console.log('🔵 Transfer処理開始:', {
-            paymentIntentId: paymentIntent.id,
-            influencerUserId,
-            influencerPayout: paymentTx.influencer_payout
-          });
-
-          // インフルエンサー情報を取得
-          const { data: influencer, error: influencerError } = await supabase
-            .from('users')
-            .select('stripe_connect_account_id')
-            .eq('id', influencerUserId)
-            .single();
-
-          if (influencerError) {
-            console.error('❌ インフルエンサー情報取得エラー:', influencerError);
-          } else if (influencer?.stripe_connect_account_id) {
-            try {
-              // Transferを実行
-              const transfer = await stripe.transfers.create({
-                amount: Math.round(paymentTx.influencer_payout || 0),
-                currency: 'jpy',
-                destination: influencer.stripe_connect_account_id,
-                transfer_group: auctionId || paymentTx.purchased_slot_id,
-              });
-
-              console.log('✅ Stripe Transfer作成成功:', transfer.id);
-
-              // stripe_transfer_idを更新
-              const { error: updateError } = await supabase
-                .from('payment_transactions')
-                .update({ stripe_transfer_id: transfer.id })
-                .eq('stripe_payment_intent_id', paymentIntent.id);
-
-              if (updateError) {
-                console.error('❌ payment_transactions更新エラー:', updateError);
-              } else {
-                console.log('✅ payment_transactions更新成功');
-              }
-            } catch (transferError: any) {
-              console.error('❌ Stripe Transfer作成エラー:', {
-                error: transferError.message,
-                paymentIntentId: paymentIntent.id,
-                influencerUserId
-              });
-              // エラーでも続行（後でリトライ可能）
-            }
+        if (paymentTx) {
+          if (paymentTx.stripe_transfer_id === 'auto_split') {
+            console.log('✅ Destination Charges方式: 自動分割済み（Transfer処理不要）');
+          } else if (paymentTx.stripe_transfer_id) {
+            console.log('✅ Transfer処理は既に完了済み:', paymentTx.stripe_transfer_id);
           } else {
-            console.warn('⚠️ stripe_connect_account_id未登録のためTransferスキップ:', {
-              influencerUserId,
-              stripe_connect_account_id: influencer?.stripe_connect_account_id
-            });
+            console.log('ℹ️ Transfer処理はCapture時に実行済み（または実行中）');
           }
         } else {
-          console.log('ℹ️ Transfer対象のpayment_transactionsが見つかりません（既にTransfer済みの可能性）');
+          console.log('ℹ️ payment_transactionsが見つかりません（Capture処理前の可能性）');
         }
         break;
 

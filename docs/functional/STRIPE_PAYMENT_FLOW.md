@@ -169,9 +169,8 @@ if (influencer?.stripe_connect_account_id &&
   - Transfer処理は不要
 - **Direct Charges方式の場合**:
   - Capture実行時、プラットフォームアカウントに即座に入金
-  - その後、WebhookでTransfer処理を実行
-- Capture実行時、Stripeは自動的に`payment_intent.succeeded`イベントを送信
-- テストモードでも、Capture実行時に`payment_intent.succeeded`イベントは送信される
+  - Capture実行後、即座にTransfer処理を実行（Webhook不要）
+- Capture実行時、Stripeは自動的に`payment_intent.succeeded`イベントを送信（ログ用）
 
 **コード実装**:
 ```typescript
@@ -210,61 +209,24 @@ await supabase.from('payment_transactions').insert({
 ```
 
 **結果**:
-- **Destination Charges方式**: 自動的に分割入金される（Transfer処理不要）
-- **Direct Charges方式**: `payment_transactions`レコードを作成（`stripe_transfer_id`は`null`、後でWebhookでTransfer）
+- **Destination Charges方式**: 自動的に分割入金される（Transfer処理不要、`stripe_transfer_id`は`'auto_split'`）
+- **Direct Charges方式**: `payment_transactions`レコードを作成し、即座にTransfer処理を実行（`stripe_transfer_id`を記録）
 - `purchased_slots.call_status`を`completed`に更新
-- Stripeから`payment_intent.succeeded`イベントが送信される
+- Stripeから`payment_intent.succeeded`イベントが送信される（ログ用、Transfer処理は既に完了）
 
 ---
 
-### フェーズ4: Webhook受信（Transfer実行）
+### フェーズ4: Webhook受信（ログ確認のみ）
 
 **エンドポイント**: `/api/stripe/webhook`
 
 **イベントタイプ**: `payment_intent.succeeded`
 
 **処理内容**:
-1. `payment_transactions`を検索（`stripe_transfer_id`が`null`のもの）
-2. インフルエンサー情報を取得
-3. Stripe Transferを実行
-4. `payment_transactions.stripe_transfer_id`を更新
+- Transfer処理はCapture時に実行済みのため、Webhookでは状態確認のみ
+- `payment_transactions`の`stripe_transfer_id`を確認してログ出力
 
-**コード実装**:
-```typescript
-// backend/src/server.ts (line 1072-1158)
-case 'payment_intent.succeeded':
-  const paymentIntent = event.data.object as Stripe.PaymentIntent;
-  
-  // Transfer未実施のpayment_transactionsを検索
-  const { data: paymentTx } = await supabase
-    .from('payment_transactions')
-    .select('*, purchased_slots!inner(influencer_user_id)')
-    .eq('stripe_payment_intent_id', paymentIntent.id)
-    .is('stripe_transfer_id', null)
-    .single();
-
-  if (paymentTx && paymentTx.purchased_slots?.influencer_user_id) {
-    // Transfer実行
-    const transfer = await stripe.transfers.create({
-      amount: Math.round(paymentTx.influencer_payout),
-      currency: 'jpy',
-      destination: influencer.stripe_connect_account_id,
-      transfer_group: auctionId || paymentTx.purchased_slot_id,
-    });
-
-    // stripe_transfer_idを更新
-    await supabase
-      .from('payment_transactions')
-      .update({ stripe_transfer_id: transfer.id })
-      .eq('stripe_payment_intent_id', paymentIntent.id);
-  }
-  break;
-```
-
-**結果**:
-- インフルエンサーのStripe Connectアカウントに送金される
-- `payment_transactions.stripe_transfer_id`が更新される
-- マイページの「入金予定額」から「総売上（受取額）」に反映される
+**注意**: Transfer処理はCapture時に実行されるため、WebhookでのTransfer処理は不要
 
 ---
 
@@ -416,13 +378,14 @@ case 'payment_intent.succeeded':
 
 ### 5. Transfer処理のタイミング
 
-- **Destination Charges方式**: Transfer処理は不要（自動分割済み）
-- **Direct Charges方式**: Capture実行後、Webhook（`payment_intent.succeeded`）を受信した時点でTransferを実行
+- **Destination Charges方式**: Transfer処理は不要（自動分割済み、`stripe_transfer_id`は`'auto_split'`）
+- **Direct Charges方式**: Capture実行後、即座にTransfer処理を実行（Webhook不要）
 
 ### 6. ステータス管理
 
-- **Destination Charges方式**: `application_fee_amount`が設定されている → 自動分割済み
-- **Direct Charges方式**: `stripe_transfer_id`が`null` → 入金予定額、`stripe_transfer_id`が設定済み → 総売上（受取額）
+- **Destination Charges方式**: `application_fee_amount`が設定されている → 自動分割済み（`stripe_transfer_id`は`'auto_split'`）
+- **Direct Charges方式**: Capture実行時にTransfer処理を実行し、`stripe_transfer_id`を記録 → 総売上（受取額）
+- **エラー時**: Transfer処理が失敗した場合、`stripe_transfer_id`は`null`のまま（後でリトライ可能）
 
 ---
 

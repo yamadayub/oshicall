@@ -485,11 +485,88 @@ export async function captureTalkPayment(
 
     // 5.5 インフルエンサーへの送金（Stripe Connect）
     // Destination Charges方式の場合: Transfer処理は不要（自動分割済み）
-    // Direct Charges方式の場合: Transfer処理はStripe Webhook（payment_intent.succeeded）で実行する
+    // Direct Charges方式の場合: Capture後に即座にTransfer処理を実行
+    let transferId: string | null = null;
+    
     if (capturedPayment.application_fee_amount) {
       console.log('✅ Destination Charges方式: 自動分割入金済み（Transfer処理不要）');
+      transferId = 'auto_split'; // Destination Charges方式のマーカー
     } else {
-      console.log('ℹ️ Direct Charges方式: Transfer処理はStripe Webhook（payment_intent.succeeded）で実行されます');
+      // Direct Charges方式: Transfer処理を実行
+      console.log('🔵 Direct Charges方式: Transfer処理を実行');
+      
+      // purchased_slotからインフルエンサーIDを取得
+      const { data: purchasedSlot, error: slotError } = await supabase
+        .from('purchased_slots')
+        .select('influencer_user_id, auction_id')
+        .eq('id', purchasedSlotId)
+        .single();
+
+      if (slotError || !purchasedSlot) {
+        console.error('❌ purchased_slot取得エラー（Transfer処理用）:', slotError);
+      } else {
+        // インフルエンサー情報を取得
+        const { data: influencer, error: influencerError } = await supabase
+          .from('users')
+          .select('stripe_connect_account_id')
+          .eq('id', purchasedSlot.influencer_user_id)
+          .single();
+
+        if (influencerError) {
+          console.error('❌ インフルエンサー情報取得エラー:', influencerError);
+        } else if (influencer?.stripe_connect_account_id) {
+          try {
+            // Transferを実行
+            const transfer = await stripe.transfers.create({
+              amount: Math.round(influencerPayout),
+              currency: 'jpy',
+              destination: influencer.stripe_connect_account_id,
+              transfer_group: purchasedSlot.auction_id || purchasedSlotId,
+            });
+
+            transferId = transfer.id;
+            console.log('✅ Stripe Transfer作成成功:', transferId);
+
+            // payment_transactionsのstripe_transfer_idを更新
+            const { error: updateError } = await supabase
+              .from('payment_transactions')
+              .update({ stripe_transfer_id: transferId })
+              .eq('stripe_payment_intent_id', capturedPayment.id);
+
+            if (updateError) {
+              console.error('❌ payment_transactions更新エラー:', updateError);
+            } else {
+              console.log('✅ payment_transactions更新成功（Transfer ID記録）');
+            }
+          } catch (transferError: any) {
+            console.error('❌ Stripe Transfer作成エラー:', {
+              error: transferError.message,
+              paymentIntentId: capturedPayment.id,
+              influencerUserId: purchasedSlot.influencer_user_id
+            });
+            // エラーでも続行（後でリトライ可能）
+          }
+        } else {
+          console.warn('⚠️ stripe_connect_account_id未登録のためTransferスキップ:', {
+            influencerUserId: purchasedSlot.influencer_user_id,
+            stripe_connect_account_id: influencer?.stripe_connect_account_id
+          });
+        }
+      }
+    }
+
+    // 既存のpayment_transactionsがある場合、transferIdを更新
+    if (existingPayment && transferId && !existingPayment.stripe_transfer_id) {
+      const { error: updateError } = await supabase
+        .from('payment_transactions')
+        .update({ stripe_transfer_id: transferId })
+        .eq('id', existingPayment.id);
+
+      if (updateError) {
+        console.error('❌ payment_transactions更新エラー（Transfer ID）:', updateError);
+      } else {
+        console.log('✅ payment_transactions更新成功（Transfer ID記録）');
+      }
     }
 
     // 6. purchased_slotsのステータスを更新
@@ -505,7 +582,7 @@ export async function captureTalkPayment(
 
     return {
       success: true,
-      message: '決済成功（TransferはStripe Webhookで実行）',
+      message: transferId ? `決済成功（Transfer完了: ${transferId === 'auto_split' ? '自動分割' : transferId}）` : '決済成功（Transfer処理は後で実行）',
       capturedPayment
     };
 

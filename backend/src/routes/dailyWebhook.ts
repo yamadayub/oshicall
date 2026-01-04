@@ -1,6 +1,9 @@
 // Daily.co Webhookエンドポイント
 import { Router, Request, Response } from 'express';
+import Stripe from 'stripe';
 import { captureTalkPayment } from '../services/paymentCapture';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 export const createDailyWebhookRouter = (supabase: any) => {
   const router = Router();
@@ -171,16 +174,110 @@ export async function processTalkPayment(supabase: any, purchasedSlotId: string)
       return;
     }
 
-    // 既に決済済みかチェック
+    // 既に決済済みかチェック（Transfer処理の有無も確認）
     const { data: existingPayment } = await supabase
       .from('payment_transactions')
-      .select('id')
+      .select('id, stripe_transfer_id, stripe_payment_intent_id')
       .eq('purchased_slot_id', purchasedSlotId)
       .maybeSingle();
 
     if (existingPayment) {
       console.log('⚠️ 既に決済済み:', purchasedSlotId);
-      console.log('ℹ️ Transfer処理はStripe Webhook（payment_intent.succeeded）で実行されます');
+      
+      // Transfer処理が未実行の場合、実行する
+      if (!existingPayment.stripe_transfer_id || existingPayment.stripe_transfer_id === 'auto_split') {
+        // auto_splitはDestination Charges方式のマーカーなのでスキップ
+        if (existingPayment.stripe_transfer_id === 'auto_split') {
+          console.log('✅ Destination Charges方式: 自動分割済み（Transfer処理不要）');
+          return;
+        }
+        
+        // Direct Charges方式でTransfer未実行の場合、実行する
+        console.log('🔵 Transfer処理が未実行のため実行します:', purchasedSlotId);
+        
+        const paymentIntentId = existingPayment.stripe_payment_intent_id;
+        if (!paymentIntentId) {
+          console.error('❌ PaymentIntent IDが取得できません');
+          return;
+        }
+
+        // PaymentIntentを取得してDestination Charges方式かどうかを確認
+        try {
+          const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+          
+          // Destination Charges方式の場合はスキップ
+          if (paymentIntent.application_fee_amount) {
+            console.log('✅ Destination Charges方式: 自動分割済み（Transfer処理不要）');
+            // auto_splitマーカーを設定
+            await supabase
+              .from('payment_transactions')
+              .update({ stripe_transfer_id: 'auto_split' })
+              .eq('id', existingPayment.id);
+            return;
+          }
+
+          // Direct Charges方式: Transfer処理を実行
+          const { data: purchasedSlotForTransfer } = await supabase
+            .from('purchased_slots')
+            .select('influencer_user_id, auction_id, winning_bid_amount')
+            .eq('id', purchasedSlotId)
+            .single();
+
+          if (!purchasedSlotForTransfer) {
+            console.error('❌ purchased_slot取得エラー（Transfer処理用）');
+            return;
+          }
+
+          const { data: influencer } = await supabase
+            .from('users')
+            .select('stripe_connect_account_id')
+            .eq('id', purchasedSlotForTransfer.influencer_user_id)
+            .single();
+
+          if (!influencer?.stripe_connect_account_id) {
+            console.warn('⚠️ stripe_connect_account_id未登録のためTransferスキップ');
+            return;
+          }
+
+          // payment_transactionsからinfluencer_payoutを取得
+          const { data: paymentTx } = await supabase
+            .from('payment_transactions')
+            .select('influencer_payout')
+            .eq('id', existingPayment.id)
+            .single();
+
+          if (!paymentTx?.influencer_payout) {
+            console.error('❌ influencer_payoutが取得できません');
+            return;
+          }
+
+          // Transferを実行
+          const transfer = await stripe.transfers.create({
+            amount: Math.round(paymentTx.influencer_payout),
+            currency: 'jpy',
+            destination: influencer.stripe_connect_account_id,
+            transfer_group: purchasedSlotForTransfer.auction_id || purchasedSlotId,
+          });
+
+          console.log('✅ Stripe Transfer作成成功:', transfer.id);
+
+          // stripe_transfer_idを更新
+          const { error: updateError } = await supabase
+            .from('payment_transactions')
+            .update({ stripe_transfer_id: transfer.id })
+            .eq('id', existingPayment.id);
+
+          if (updateError) {
+            console.error('❌ payment_transactions更新エラー:', updateError);
+          } else {
+            console.log('✅ payment_transactions更新成功（Transfer ID記録）');
+          }
+        } catch (error: any) {
+          console.error('❌ Transfer処理エラー:', error);
+        }
+      } else {
+        console.log('✅ Transfer処理は既に完了済み');
+      }
       return;
     }
 
