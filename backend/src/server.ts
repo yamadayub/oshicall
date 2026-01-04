@@ -874,26 +874,36 @@ app.post('/api/stripe/influencer-earnings', async (req: Request, res: Response) 
         // - Direct Charges方式: type='transfer'（プラットフォームからのTransfer）
         // - Destination Charges方式: type='charge'（直接Charge、自動分割済み）
         // 金額が正の値（入金）で、円単位のものを集計
-        totalEarningsFromStripe = balanceTransactions.data
-          .filter(bt => {
-            // TransferまたはChargeで、成功しているもの
-            const isTransferOrCharge = bt.type === 'transfer' || bt.type === 'charge';
-            // 金額が正の値（入金）
-            const isPositive = bt.amount > 0;
-            // 円単位
-            const isJpy = bt.currency === 'jpy';
-            // ステータスがavailableまたはpending（成功している）
-            const isSuccessful = bt.status === 'available' || bt.status === 'pending';
-            return isTransferOrCharge && isPositive && isJpy && isSuccessful;
-          })
-          .reduce((sum, bt) => sum + (bt.amount / 100), 0); // セント単位から円単位に変換
+        const allTransactions = balanceTransactions.data || [];
+        const filteredTransactions = allTransactions.filter(bt => {
+          // TransferまたはChargeで、成功しているもの
+          const isTransferOrCharge = bt.type === 'transfer' || bt.type === 'charge';
+          // 金額が正の値（入金）
+          const isPositive = bt.amount > 0;
+          // 円単位
+          const isJpy = bt.currency === 'jpy';
+          // ステータスがavailableまたはpending（成功している）
+          const isSuccessful = bt.status === 'available' || bt.status === 'pending';
+          return isTransferOrCharge && isPositive && isJpy && isSuccessful;
+        });
+
+        totalEarningsFromStripe = filteredTransactions.reduce((sum, bt) => sum + (bt.amount / 100), 0); // セント単位から円単位に変換
 
         console.log('✅ Balance Transactionsから集計した総売上:', {
+          allTransactionsCount: allTransactions.length,
+          filteredTransactionsCount: filteredTransactions.length,
           totalEarnings: totalEarningsFromStripe,
           breakdown: {
-            transfers: balanceTransactions.data.filter(bt => bt.type === 'transfer' && bt.amount > 0 && bt.currency === 'jpy').reduce((sum, bt) => sum + (bt.amount / 100), 0),
-            charges: balanceTransactions.data.filter(bt => bt.type === 'charge' && bt.amount > 0 && bt.currency === 'jpy').reduce((sum, bt) => sum + (bt.amount / 100), 0),
+            transfers: allTransactions.filter(bt => bt.type === 'transfer' && bt.amount > 0 && bt.currency === 'jpy').reduce((sum, bt) => sum + (bt.amount / 100), 0),
+            charges: allTransactions.filter(bt => bt.type === 'charge' && bt.amount > 0 && bt.currency === 'jpy').reduce((sum, bt) => sum + (bt.amount / 100), 0),
           },
+          sampleTransactions: filteredTransactions.slice(0, 3).map(bt => ({
+            id: bt.id,
+            type: bt.type,
+            amount: bt.amount / 100,
+            currency: bt.currency,
+            status: bt.status,
+          })),
         });
 
         // 入金予定額: Balance Transactionsからpendingステータスのものを集計
@@ -934,9 +944,22 @@ app.post('/api/stripe/influencer-earnings', async (req: Request, res: Response) 
     let totalEarnings: number;
     let pendingPayout: number;
 
-    if (stripeEarningsError || !user.stripe_connect_account_id || !transactions || transactions.length === 0) {
+    // フォールバック条件: エラーがある、Connect Account IDがない、取引データがない、またはStripeから取得したデータが0で取引データがある場合
+    const shouldUseFallback = stripeEarningsError || 
+                               !user.stripe_connect_account_id || 
+                               !transactions || 
+                               transactions.length === 0 ||
+                               (totalEarningsFromStripe === 0 && pendingPayoutFromStripe === 0 && transactions.length > 0);
+
+    if (shouldUseFallback) {
       // フォールバック: payment_transactionsから集計
-      console.log('⚠️ Stripeから取得できなかったため、payment_transactionsから集計');
+      console.log('⚠️ Stripeから取得できなかったため、payment_transactionsから集計', {
+        stripeEarningsError,
+        hasConnectAccountId: !!user.stripe_connect_account_id,
+        transactionsCount: transactions?.length || 0,
+        totalEarningsFromStripe,
+        pendingPayoutFromStripe,
+      });
       
       const totalEarningsFromDB = (transactions || []).filter(tx => 
         tx.stripe_transfer_id !== null && 
@@ -952,6 +975,15 @@ app.post('/api/stripe/influencer-earnings', async (req: Request, res: Response) 
       pendingPayout = (transactions || []).filter(tx => 
         tx.stripe_transfer_id === null || tx.stripe_transfer_id === undefined
       ).reduce((sum, tx) => sum + (tx.influencer_payout || 0), 0);
+
+      console.log('✅ payment_transactionsから集計完了:', {
+        totalEarnings,
+        pendingPayout,
+        breakdown: {
+          transferEarnings: totalEarningsFromDB,
+          autoSplitEarnings,
+        },
+      });
     } else {
       // Stripeから取得した値を使用
       totalEarnings = totalEarningsFromStripe;
