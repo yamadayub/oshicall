@@ -4,11 +4,11 @@ import { Page } from '@playwright/test';
  * Talk枠作成画面にアクセスする
  */
 export async function navigateToCreateCallSlot(page: Page) {
-  // マイページにアクセス
-  await page.goto('/mypage');
-  
-  // URLが/mypageであることを確認（ログイン完了まで待機）
-  await page.waitForURL(/\/mypage/, { timeout: 10000 });
+  // マイページにアクセス（既に/mypageにいる場合は遷移しない）
+  const currentURL = page.url();
+  if (!currentURL.includes('/mypage')) {
+    await page.goto('/mypage');
+  }
   
   // ローディングが完了するまで待機
   await page.waitForLoadState('networkidle');
