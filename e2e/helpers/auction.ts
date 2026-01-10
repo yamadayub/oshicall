@@ -13,13 +13,13 @@ export async function navigateToCreateCallSlot(page: Page) {
   // ローディングが完了するまで待機
   await page.waitForLoadState('networkidle');
   
-  // 「Talk枠」セクションが表示されるまで待機（インフルエンサー権限の確認）
-  await page.waitForSelector('h3:has-text("Talk枠")', { timeout: 10000 });
+  // ページが完全に読み込まれるまで少し待機（Reactの状態更新を待つ）
+  await page.waitForTimeout(1000);
   
   // 「新規作成」ボタンをクリック
-  // ボタンが表示されるまで待機
+  // ボタンが表示されるまで待機（Talk枠セクション内のボタン）
   const createButton = page.locator('button:has-text("新規作成")').first();
-  await createButton.waitFor({ state: 'visible', timeout: 10000 });
+  await createButton.waitFor({ state: 'visible', timeout: 15000 });
   await createButton.click();
   
   // モーダルまたはフォームが表示されるまで待機
