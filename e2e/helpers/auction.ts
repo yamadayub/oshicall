@@ -7,13 +7,20 @@ export async function navigateToCreateCallSlot(page: Page) {
   // マイページにアクセス
   await page.goto('/mypage');
   
+  // URLが/mypageであることを確認（ログイン完了まで待機）
+  await page.waitForURL(/\/mypage/, { timeout: 10000 });
+  
   // ローディングが完了するまで待機
   await page.waitForLoadState('networkidle');
   
+  // 「Talk枠」セクションが表示されるまで待機（インフルエンサー権限の確認）
+  await page.waitForSelector('h3:has-text("Talk枠")', { timeout: 10000 });
+  
   // 「新規作成」ボタンをクリック
   // ボタンが表示されるまで待機
-  await page.waitForSelector('button:has-text("新規作成")', { timeout: 10000 });
-  await page.click('button:has-text("新規作成")');
+  const createButton = page.locator('button:has-text("新規作成")').first();
+  await createButton.waitFor({ state: 'visible', timeout: 10000 });
+  await createButton.click();
   
   // モーダルまたはフォームが表示されるまで待機
   await page.waitForSelector('input[name="title"]', { timeout: 5000 });
