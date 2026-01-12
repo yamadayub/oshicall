@@ -15,3 +15,12 @@
 - 確認なしのコード修正
 - 指示されていないファイルの変更
 - "ついでに"の改善や最適化
+- 承認なしでのコード修正（絶対禁止）
+
+## 必須参照ドキュメント
+コード変更を行う前に、以下を必ず参照すること：
+- `docs/ai_workflow/CODE_CHANGE_WORKFLOW.md` - コード変更ワークフローガイドライン（最重要）
+- `docs/ai_workflow/AI_TDD_AUTOMATION_GUIDE.md` - テスト開発時は必ず参照
+- `docs/ai_workflow/MULTI_AGENT_DEVELOPMENT_GUIDE.md` - マルチエージェント開発時は必ず参照
+
+これらのドキュメントに記載されているルールを必ず遵守すること。

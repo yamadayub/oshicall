@@ -114,8 +114,16 @@ docs/
 
 ### AI開発プロセス（/docs/ai_workflow/）
 
+**⚠️ 重要**: コード変更を行う前に、必ず `CODE_CHANGE_WORKFLOW.md` を参照してください。承認無しでのコード修正は絶対に行わないでください。
+
 - [AI-TDD開発ガイド](./ai_workflow/AI_TDD_DEVELOPMENT_GUIDE.md) - AI駆動テスト開発の包括的ガイド（統合版）
-- [コード変更ワークフロー](./ai_workflow/CODE_CHANGE_WORKFLOW.md) - コード変更のワークフローガイドライン
+- [コード変更ワークフロー](./ai_workflow/CODE_CHANGE_WORKFLOW.md) - コード変更のワークフローガイドライン ⚠️ **必読**
+- [マルチエージェント開発ガイド](./ai_workflow/MULTI_AGENT_DEVELOPMENT_GUIDE.md) - マルチエージェント開発のガイドライン
+
+**必須遵守事項**:
+- コード変更を行う前に、必ず `CODE_CHANGE_WORKFLOW.md` を参照すること
+- 承認無しでのコード修正は絶対に行わないこと
+- `docs/ai_workflow/` 配下のドキュメントは、コード変更やテスト開発時に必ず参照すること
 
 ## 🗂️ ドキュメント体系
 

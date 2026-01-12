@@ -35,6 +35,15 @@
 
 詳細は [`docs/TECH_STACK.md`](./docs/TECH_STACK.md) を参照してください。
 
+## ⚠️ 開発時の重要ルール
+
+**コード変更を行う前に、必ず以下を参照してください：**
+
+- **承認無しでのコード修正禁止**: コード変更を行う前に、必ず [`docs/ai_workflow/CODE_CHANGE_WORKFLOW.md`](./docs/ai_workflow/CODE_CHANGE_WORKFLOW.md) を参照し、提案→承認→実行の順序を守ること
+- **必須参照ドキュメント**: `docs/ai_workflow/` 配下のドキュメントは、コード変更やテスト開発時に必ず参照すること
+
+詳細は [`docs/ai_workflow/CODE_CHANGE_WORKFLOW.md`](./docs/ai_workflow/CODE_CHANGE_WORKFLOW.md) を参照してください。
+
 ## 開発環境セットアップ
 
 ### ステップ 1: リポジトリのクローンと依存関係のインストール
