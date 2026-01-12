@@ -4,14 +4,8 @@ import { Page } from '@playwright/test';
  * Talk枠作成画面にアクセスする
  */
 export async function navigateToCreateCallSlot(page: Page) {
-  // マイページにアクセス（常に遷移を実行）
+  // マイページにアクセス（waitUntil: 'networkidle'で遷移とローディング完了を待つ）
   await page.goto('/mypage', { waitUntil: 'networkidle' });
-  
-  // URLが/mypageであることを確認（遷移完了まで待機）
-  await page.waitForURL(/\/mypage/, { timeout: 10000 });
-  
-  // ローディングが完了するまで待機
-  await page.waitForLoadState('networkidle');
   
   // ページが完全に読み込まれるまで少し待機（Reactの状態更新を待つ）
   await page.waitForTimeout(1000);
