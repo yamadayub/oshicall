@@ -116,9 +116,9 @@ docs/
 
 **⚠️ 重要**: コード変更を行う前に、必ず `CODE_CHANGE_WORKFLOW.md` を参照してください。承認無しでのコード修正は絶対に行わないでください。
 
-- [AI-TDD開発ガイド](./ai_workflow/AI_TDD_DEVELOPMENT_GUIDE.md) - AI駆動テスト開発の包括的ガイド（統合版）
+- [AI-TDD開発ガイド](./ai_workflow/AI_TDD_DEVELOPMENT_GUIDE.md) - AI駆動テスト開発の包括的ガイド（シングルAgent開発）
+- [マルチAgent開発ガイド](./ai_workflow/MULTI_AGENT_DEVELOPMENT_GUIDE.md) - 複数Agent（Main Agent + Sub Agent）を活用した開発手法
 - [コード変更ワークフロー](./ai_workflow/CODE_CHANGE_WORKFLOW.md) - コード変更のワークフローガイドライン ⚠️ **必読**
-- [マルチエージェント開発ガイド](./ai_workflow/MULTI_AGENT_DEVELOPMENT_GUIDE.md) - マルチエージェント開発のガイドライン
 
 **必須遵守事項**:
 - コード変更を行う前に、必ず `CODE_CHANGE_WORKFLOW.md` を参照すること
